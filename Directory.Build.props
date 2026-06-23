@@ -1,0 +1,57 @@
+<!--
+  ATS – Directory.Build.props
+  Localização: raiz do repositório (mesmo nível do ATS.sln)
+
+  Estas propriedades se aplicam a TODOS os projetos da solution
+  automaticamente, sem necessidade de referenciar em cada .csproj.
+-->
+<Project>
+
+  <!-- ═══════════════════════════════════════════════════════════════════
+       Configurações gerais de compilação
+  ═══════════════════════════════════════════════════════════════════ -->
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <LangVersion>12</LangVersion>             <!-- C# 12 (record structs, primary constructors…) -->
+    <Nullable>enable</Nullable>               <!-- Nullable reference types obrigatório -->
+    <ImplicitUsings>enable</ImplicitUsings>   <!-- System.*, System.Collections.Generic.* etc. -->
+    <Deterministic>true</Deterministic>       <!-- Builds reproduzíveis -->
+  </PropertyGroup>
+
+  <!-- ═══════════════════════════════════════════════════════════════════
+       Analyzers e qualidade de código
+  ═══════════════════════════════════════════════════════════════════ -->
+  <PropertyGroup>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisLevel>latest</AnalysisLevel>         <!-- Regras mais recentes do Roslyn -->
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild> <!-- Regras do .editorconfig em build -->
+    <!--
+      TreatWarningsAsErrors é false por padrão aqui.
+      Na CI (ci.yml) passamos /p:TreatWarningsAsErrors=true
+      para não travar o desenvolvimento local por warnings.
+    -->
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <!-- ═══════════════════════════════════════════════════════════════════
+       Metadados do pacote / assembly (informações de versão)
+  ═══════════════════════════════════════════════════════════════════ -->
+  <PropertyGroup>
+    <Company>ATS</Company>
+    <Product>Applicant Tracking System</Product>
+    <Version>1.0.0</Version>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+  </PropertyGroup>
+
+  <!-- ═══════════════════════════════════════════════════════════════════
+       Documentação XML – necessário para o Swagger gerar descriptions
+       nos endpoints a partir dos /// comments dos controllers
+  ═══════════════════════════════════════════════════════════════════ -->
+  <PropertyGroup>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- Suprime aviso de membro público sem doc (comum em DTOs e Commands) -->
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+
+</Project>
