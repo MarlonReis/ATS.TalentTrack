@@ -11,7 +11,7 @@
        Configurações gerais de compilação
   ═══════════════════════════════════════════════════════════════════ -->
   <PropertyGroup>
-    <TargetFramework>net9.0</TargetFramework>
+    <TargetFramework>net8.0</TargetFramework>
     <LangVersion>12</LangVersion>             <!-- C# 12 (record structs, primary constructors…) -->
     <Nullable>enable</Nullable>               <!-- Nullable reference types obrigatório -->
     <ImplicitUsings>enable</ImplicitUsings>   <!-- System.*, System.Collections.Generic.* etc. -->
