@@ -1,0 +1,26 @@
+# Build outputs
+bin/
+obj/
+out/
+
+# VS artifacts
+.vs/
+*.user
+
+# Rider/JetBrains
+.idea/
+
+# Environments
+.env
+.env.local
+*.env
+
+# Docker data
+mongo-data/
+
+# Logs
+*.log
+
+# Coverage
+TestResults/
+coverage/
