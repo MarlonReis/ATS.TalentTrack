@@ -1,7 +1,7 @@
 namespace ATS.Domain.Candidatos.ValueObjects;
 
-using ATS.Domain.Shared;
 using System.Text.RegularExpressions;
+using ATS.Domain.Shared;
 
 public sealed class Telefone : ValueObject
 {
@@ -12,12 +12,16 @@ public sealed class Telefone : ValueObject
     public static Telefone Create(string numero)
     {
         if (string.IsNullOrWhiteSpace(numero))
+        {
             throw new DomainException("Telefone não pode ser vazio.");
+        }
 
         var apenasDigitos = Regex.Replace(numero, @"\D", "");
 
         if (apenasDigitos.Length is < 10 or > 11)
+        {
             throw new DomainException("Telefone deve ter 10 ou 11 dígitos.");
+        }
 
         return new Telefone(apenasDigitos);
     }

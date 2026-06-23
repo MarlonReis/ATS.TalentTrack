@@ -12,10 +12,10 @@ public class TelefoneTests
     [InlineData("")]
     public void DeveLancarErroQuandoForNuloOuVazio(string? numero)
     {
-         var excecao = Assert.Throws<DomainException>(
-            () => Telefone.Create(numero));
+        var excecao = Assert.Throws<DomainException>(
+           () => Telefone.Create(numero));
 
-         Assert.Equal("Telefone não pode ser vazio.", excecao.Message);
+        Assert.Equal("Telefone não pode ser vazio.", excecao.Message);
     }
 
     [Theory]
@@ -23,10 +23,10 @@ public class TelefoneTests
     [InlineData("999999999999")]
     public void DeveLancarErroQuandoForMenorQue10EMaiorQue11(string numero)
     {
-         var excecao = Assert.Throws<DomainException>(
-            () => Telefone.Create(numero));
+        var excecao = Assert.Throws<DomainException>(
+           () => Telefone.Create(numero));
 
-         Assert.Equal("Telefone deve ter 10 ou 11 dígitos.", excecao.Message);
+        Assert.Equal("Telefone deve ter 10 ou 11 dígitos.", excecao.Message);
     }
 
     [Theory]
@@ -34,11 +34,11 @@ public class TelefoneTests
     [InlineData("3534322399")]
     public void DeveCriarInstanciaValidas(string numero)
     {
-         var telefone = Telefone.Create(numero);
+        var telefone = Telefone.Create(numero);
 
-         Assert.Equal(numero,telefone.Value);
-         Assert.Equal(numero,telefone.ToString());
-         Assert.Equal(telefone,Telefone.Create(numero));
+        Assert.Equal(numero, telefone.Value);
+        Assert.Equal(numero, telefone.ToString());
+        Assert.Equal(telefone, Telefone.Create(numero));
     }
 
 

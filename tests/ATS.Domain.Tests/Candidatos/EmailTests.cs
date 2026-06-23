@@ -36,9 +36,9 @@ public class EmailTests
     }
 
     [Theory]
-    [InlineData("emailsemarroba.com")]    
-    [InlineData("@semusuario.com")]       
-    [InlineData("usuario@")]             
+    [InlineData("emailsemarroba.com")]
+    [InlineData("@semusuario.com")]
+    [InlineData("usuario@")]
     [InlineData("usuario@semextensao")]
     [InlineData("usu ario@email.com")]
     public void CreateComFormatoInvalidoDeveLancarDomainException(string emailMalFormado)
