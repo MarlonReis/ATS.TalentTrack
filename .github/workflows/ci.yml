@@ -1,15 +1,6 @@
 # =============================================================================
 # ATS – CI Pipeline
 # Localização: .github/workflows/ci.yml
-#
-# Dispara em:
-#   • push para main e develop
-#   • pull_request direcionado a main e develop
-#
-# Jobs:
-#   1. build        → restaura pacotes e compila (warnings = erros)
-#   2. unit-tests   → executa xUnit, coleta cobertura, valida threshold
-#   3. code-quality → verifica formatação e audita vulnerabilidades
 # =============================================================================
 
 name: CI
@@ -21,24 +12,21 @@ on:
     branches: [main, develop]
     types: [opened, synchronize, reopened]
 
-# Cancela runs duplicadas no mesmo branch/PR (não cancela em main)
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 env:
-  DOTNET_VERSION: '8.0.x'
-  SOLUTION: 'ATS.sln'
-  COVERAGE_THRESHOLD: '70'             # % mínimo de cobertura de linhas
+  DOTNET_VERSION: '10.0.x'       # alinhado com net10.0 dos .csproj
+  COVERAGE_THRESHOLD: '70'
 
 permissions:
   contents: read
-  checks: write                        # necessário para o test-reporter comentar no PR
+  checks: write
   pull-requests: write
 
 # =============================================================================
 # JOB 1 – BUILD
-# Gate obrigatório: os outros jobs só iniciam se este passar.
 # =============================================================================
 jobs:
   build:
@@ -61,6 +49,18 @@ jobs:
           key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/Directory.Build.props') }}
           restore-keys: nuget-${{ runner.os }}-
 
+      # Suporta tanto .slnx (novo formato .NET 9+) quanto .sln (formato clássico)
+      - name: Locate solution file
+        run: |
+          SLN=$(find . \( -name "*.slnx" -o -name "*.sln" \) -maxdepth 4 | head -1)
+          if [ -z "$SLN" ]; then
+            echo "Nenhum arquivo .sln / .slnx encontrado. Estrutura atual:"
+            find . -maxdepth 3 -not -path '*/.git/*' -not -path '*/bin/*' -not -path '*/obj/*' | sort
+            exit 1
+          fi
+          echo "Solução encontrada: $SLN"
+          echo "SOLUTION=$SLN" >> $GITHUB_ENV
+
       - name: Restore dependencies
         run: dotnet restore ${{ env.SOLUTION }}
 
@@ -73,7 +73,6 @@ jobs:
 
 # =============================================================================
 # JOB 2 – UNIT TESTS & COVERAGE
-# Roda em paralelo com o job code-quality após o build.
 # =============================================================================
   unit-tests:
     name: Unit Tests & Coverage
@@ -96,13 +95,22 @@ jobs:
           key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/Directory.Build.props') }}
           restore-keys: nuget-${{ runner.os }}-
 
+      - name: Locate solution file
+        run: |
+          SLN=$(find . \( -name "*.slnx" -o -name "*.sln" \) -maxdepth 4 | head -1)
+          if [ -z "$SLN" ]; then
+            echo "Nenhum arquivo .sln / .slnx encontrado."
+            exit 1
+          fi
+          echo "Solução encontrada: $SLN"
+          echo "SOLUTION=$SLN" >> $GITHUB_ENV
+
       - name: Restore
         run: dotnet restore ${{ env.SOLUTION }}
 
       - name: Build
         run: dotnet build ${{ env.SOLUTION }} --no-restore -c Release
 
-      # Executa apenas testes unitários (exclui qualquer classe marcada com "Integration")
       - name: Run unit tests
         run: |
           dotnet test ${{ env.SOLUTION }} \
@@ -120,7 +128,6 @@ jobs:
       - name: Install ReportGenerator
         run: dotnet tool install --global dotnet-reportgenerator-globaltool
 
-      # Gera relatório HTML (baixável como artefato) + TextSummary para o log
       - name: Generate coverage report
         run: |
           reportgenerator \
@@ -128,11 +135,10 @@ jobs:
             -targetdir:"./coverage-report" \
             -reporttypes:"Html;Badges;TextSummary"
 
-      # Lê o XML do coverlet e falha se a cobertura estiver abaixo do threshold
       - name: Enforce coverage threshold (${{ env.COVERAGE_THRESHOLD }}%)
         run: |
           python3 << 'EOF'
-          import glob, xml.etree.ElementTree as ET, sys
+          import glob, xml.etree.ElementTree as ET, sys, os
 
           files = glob.glob('./TestResults/**/coverage.cobertura.xml', recursive=True)
           if not files:
@@ -150,7 +156,7 @@ jobs:
               sys.exit(1)
 
           coverage  = (total_covered / total_valid) * 100
-          threshold = ${{ env.COVERAGE_THRESHOLD }}
+          threshold = int(os.environ.get('COVERAGE_THRESHOLD', '70'))
 
           print(f'Cobertura de linhas: {coverage:.1f}%  ({total_covered}/{total_valid} linhas)')
 
@@ -161,7 +167,6 @@ jobs:
           print(f'OK: cobertura {coverage:.1f}% >= {threshold}%')
           EOF
 
-      # Exibe resumo de cobertura diretamente na aba "Summary" do run
       - name: Write coverage summary
         if: always()
         run: |
@@ -185,7 +190,6 @@ jobs:
           path: ./coverage-report/
           retention-days: 7
 
-      # Publica resultados dos testes como comentário no PR
       - name: Publish test report
         uses: dorny/test-reporter@v1
         if: always()
@@ -197,7 +201,6 @@ jobs:
 
 # =============================================================================
 # JOB 3 – CODE QUALITY
-# Roda em paralelo com unit-tests após o build.
 # =============================================================================
   code-quality:
     name: Code Quality
@@ -220,17 +223,25 @@ jobs:
           key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/Directory.Build.props') }}
           restore-keys: nuget-${{ runner.os }}-
 
+      - name: Locate solution file
+        run: |
+          SLN=$(find . \( -name "*.slnx" -o -name "*.sln" \) -maxdepth 4 | head -1)
+          if [ -z "$SLN" ]; then
+            echo "Nenhum arquivo .sln / .slnx encontrado."
+            exit 1
+          fi
+          echo "Solução encontrada: $SLN"
+          echo "SOLUTION=$SLN" >> $GITHUB_ENV
+
       - name: Restore
         run: dotnet restore ${{ env.SOLUTION }}
 
-      # Falha se qualquer arquivo divergir das regras do .editorconfig
       - name: Check code formatting
         run: |
           dotnet format ${{ env.SOLUTION }} \
             --verify-no-changes \
             --verbosity diagnostic
 
-      # Lista pacotes com CVEs conhecidos; falha se encontrar algum
       - name: Audit for vulnerable packages
         run: |
           dotnet list package --vulnerable --include-transitive 2>&1 | tee vuln.txt
