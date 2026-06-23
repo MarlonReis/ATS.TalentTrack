@@ -1,26 +1,70 @@
-# Build outputs
-bin/
-obj/
+# =============================================================================
+# .gitignore – ATS (.NET 10 + Rider + VS Code)
+# Localização: raiz do repositório
+# =============================================================================
+
+# ─── Artefatos de build (NUNCA commitar) ─────────────────────────────────────
+[Bb]in/
+[Oo]bj/
 out/
+publish/
 
-# VS artifacts
-.vs/
+# ─── Arquivos de usuário do Visual Studio ────────────────────────────────────
 *.user
+*.suo
+*.userosscache
+*.sln.docstates
+.vs/
 
-# Rider/JetBrains
+# ─── JetBrains Rider ─────────────────────────────────────────────────────────
 .idea/
+*.DotSettings.user
 
-# Environments
+# ─── VS Code ─────────────────────────────────────────────────────────────────
+.vscode/
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/tasks.json
+
+# ─── Variáveis de ambiente e segredos ────────────────────────────────────────
 .env
-.env.local
-*.env
+.env.*
+!.env.example
+*.pfx
+*.p12
+secrets.json
+appsettings.*.json
+!appsettings.json
+!appsettings.Development.json
 
-# Docker data
-mongo-data/
+# ─── Pacotes NuGet restaurados localmente ────────────────────────────────────
+packages/
+*.nupkg
+*.snupkg
+project.lock.json
+project.fragment.lock.json
+artifacts/
 
-# Logs
+# ─── Logs e relatórios ───────────────────────────────────────────────────────
 *.log
-
-# Coverage
 TestResults/
 coverage/
+coverage-report/
+*.trx
+*.coverage
+*.coveragexml
+
+# ─── Docker ──────────────────────────────────────────────────────────────────
+mongo-data/
+
+# ─── macOS ───────────────────────────────────────────────────────────────────
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# ─── Windows ─────────────────────────────────────────────────────────────────
+Thumbs.db
+Desktop.ini
+
+# ─── Linux ───────────────────────────────────────────────────────────────────
+*~
