@@ -9,7 +9,7 @@ public sealed class Telefone : ValueObject
 
     private Telefone(string numero) => Value = numero;
 
-    public static Telefone Create(string numero)
+    public static Telefone Create(string? numero)
     {
         if (string.IsNullOrWhiteSpace(numero))
         {

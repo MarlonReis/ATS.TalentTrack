@@ -10,7 +10,7 @@ public class TelefoneTests
     [Theory]
     [InlineData(null)]
     [InlineData("")]
-    public void DeveLancarErroQuandoForNuloOuVazio(string numero)
+    public void DeveLancarErroQuandoForNuloOuVazio(string? numero)
     {
         var excecao = Assert.Throws<DomainException>(
            () => Telefone.Create(numero));

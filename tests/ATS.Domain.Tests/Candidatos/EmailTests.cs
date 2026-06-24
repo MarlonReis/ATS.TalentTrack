@@ -26,8 +26,7 @@ public class EmailTests
     [InlineData(null)]
     [InlineData("")]
     [InlineData("   ")]
-    public void DeveLancarUmErroQuandoForVazioOuNulo(
-        string emailInvalido)
+    public void DeveLancarUmErroQuandoForVazio(string? emailInvalido)
     {
         var excecao = Assert.Throws<DomainException>(
             () => Email.Create(emailInvalido!));

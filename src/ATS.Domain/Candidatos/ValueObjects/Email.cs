@@ -9,7 +9,7 @@ public sealed class Email : ValueObject
 
     private Email(string value) => Value = value;
 
-    public static Email Create(string email)
+    public static Email Create(string? email)
     {
         if (string.IsNullOrWhiteSpace(email))
         {
