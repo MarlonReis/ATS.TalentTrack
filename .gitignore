@@ -15,7 +15,8 @@ publish/
 *.userosscache
 *.sln.docstates
 .vs/
-
+coverage-report/
+TestResults-local/
 # ─── JetBrains Rider ─────────────────────────────────────────────────────────
 .idea/
 *.DotSettings.user
