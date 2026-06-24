@@ -183,3 +183,6 @@ indent_size = 2
 # ─────────────────────────────────────────────────────────────────────────────
 [*.md]
 trim_trailing_whitespace = false
+
+[src/ATS.API/Program.cs]
+dotnet_diagnostic.IDE0040.severity = none
