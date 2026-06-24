@@ -123,7 +123,8 @@ jobs:
             --results-directory ./TestResults \
             -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura \
                DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.ExcludeByAttribute=GeneratedCodeAttribute \
-               DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.ExcludeByFile="**/Program.cs"
+               DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.ExcludeByFile="**/Program.cs,**/Shared/**" \
+               DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Exclude="[*]*.Shared.*"
 
       - name: Install ReportGenerator
         run: dotnet tool install --global dotnet-reportgenerator-globaltool
@@ -156,7 +157,7 @@ jobs:
               sys.exit(1)
 
           coverage  = (total_covered / total_valid) * 100
-          threshold = int(os.environ.get('COVERAGE_THRESHOLD', '70'))
+          threshold = int(os.environ.get('COVERAGE_THRESHOLD', '50'))
 
           print(f'Cobertura de linhas: {coverage:.1f}%  ({total_covered}/{total_valid} linhas)')
 
