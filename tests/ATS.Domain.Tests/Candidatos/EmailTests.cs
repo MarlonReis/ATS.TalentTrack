@@ -10,7 +10,7 @@ public class EmailTests
     [Theory]
     [InlineData("joao@email.com", "joao@email.com")]
     [InlineData("JOAO@EMAIL.COM", "joao@email.com")]
-    public void CreateComEmailValidoDeveRetornarValueObjectNormalizado(string entrada, string esperado)
+    public void DeveCriarUmEmailValidoDeveRetornarValueObjectNormalizado(string entrada, string esperado)
     {
 
         var email = Email.Create(entrada);
@@ -26,8 +26,7 @@ public class EmailTests
     [InlineData(null)]
     [InlineData("")]
     [InlineData("   ")]
-    public void CreateComEmailNuloOuVazioDeveLancarDomainExceptionComMensagemCorreta(
-        string? emailInvalido)
+    public void DeveLancarUmErroQuandoForVazio(string? emailInvalido)
     {
         var excecao = Assert.Throws<DomainException>(
             () => Email.Create(emailInvalido!));
@@ -36,12 +35,12 @@ public class EmailTests
     }
 
     [Theory]
-    [InlineData("emailsemarroba.com")]    
-    [InlineData("@semusuario.com")]       
-    [InlineData("usuario@")]             
+    [InlineData("emailsemarroba.com")]
+    [InlineData("@semusuario.com")]
+    [InlineData("usuario@")]
     [InlineData("usuario@semextensao")]
     [InlineData("usu ario@email.com")]
-    public void CreateComFormatoInvalidoDeveLancarDomainException(string emailMalFormado)
+    public void DeveLancarUmErroQuandoEmailForInvalido(string emailMalFormado)
     {
         var excecao = Assert.Throws<DomainException>(
             () => Email.Create(emailMalFormado));
