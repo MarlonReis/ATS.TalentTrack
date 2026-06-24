@@ -1,6 +1,11 @@
 namespace ATS.Infrastructure;
 
+using ATS.Application.Candidatos.Commands.AddCurriculo;
 using ATS.Application.Candidatos.Commands.CreateCandidato;
+using ATS.Application.Candidatos.Commands.DeleteCandidato;
+using ATS.Application.Candidatos.Commands.UpdateCandidato;
+using ATS.Application.Candidatos.Queries.GetCandidatoById;
+using ATS.Application.Candidatos.Queries.ListCandidatos;
 using ATS.Application.Candidaturas.Commands.AprovarCandidatura;
 using ATS.Application.Candidaturas.Commands.CancelarCandidatura;
 using ATS.Application.Candidaturas.Commands.CandidatarSe;
@@ -20,12 +25,20 @@ public static class DependencyInjection
         // services.AddSingleton<MongoDbContext>();
 
         // ── Repositórios ─────────────────────────────────────────────────────
-        // services.AddScoped<ICandidatoRepository,   CandidatoRepository>();
+        //services.AddScoped<ICandidatoRepository,   CandidatoRepository>();
         // services.AddScoped<IVagaRepository,         VagaRepository>();
         // services.AddScoped<ICandidaturaRepository,  CandidaturaRepository>();
 
         // ── Candidatos – Commands ─────────────────────────────────────────────
+
         services.AddScoped<CreateCandidatoHandler>();
+        services.AddScoped<UpdateCandidatoHandler>();
+        services.AddScoped<DeleteCandidatoHandler>();
+        services.AddScoped<AddCurriculoHandler>();
+
+        // ── Candidatos – Queries ──────────────────────────────────────────────
+        services.AddScoped<GetCandidatoByIdHandler>();
+        services.AddScoped<ListCandidatosHandler>();
 
         // ── Candidaturas – Commands ───────────────────────────────────────────
         services.AddScoped<CandidatarSeHandler>();
