@@ -91,6 +91,25 @@ public class MongoDbServiceCollectionExtensionsTests
         Assert.Equal(100, collection.Database.Client.Settings.MaxConnectionPoolSize);
     }
 
+    [Fact]
+    public void DeveAceitarMaxPoolSizeComoAliasDeConfiguracao()
+    {
+        var services = new ServiceCollection();
+        var configuration = CriarConfiguracao(new Dictionary<string, string?>
+        {
+            ["MongoDB:DatabaseName"] = "AtsDbAlias",
+            ["MongoDB:MaxPoolSize"] = "44"
+        });
+
+        services.AddMongoDb(configuration);
+
+        var context = ObterContextoRegistrado(services);
+        var collection = context.GetCollection<DocumentoTeste>("vagas");
+
+        Assert.Equal("AtsDbAlias", collection.Database.DatabaseNamespace.DatabaseName);
+        Assert.Equal(44, collection.Database.Client.Settings.MaxConnectionPoolSize);
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData("valor-invalido")]
