@@ -9,4 +9,5 @@ public interface IVagaRepository
     Task AdicionarAsync(Vaga vaga, CancellationToken ct = default);
     Task AtualizarAsync(Vaga vaga, CancellationToken ct = default);
     Task RemoverAsync(Guid id, CancellationToken ct = default);
+    Task<long> ContarAsync(CancellationToken ct = default);
 }

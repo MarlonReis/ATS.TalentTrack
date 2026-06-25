@@ -12,6 +12,12 @@ using ATS.Application.Candidaturas.Commands.CandidatarSe;
 using ATS.Application.Candidaturas.Commands.ReprovarCandidatura;
 using ATS.Application.Candidaturas.Queries.GetCandidaturaById;
 using ATS.Application.Candidaturas.Queries.ListCandidatosPorVaga;
+using ATS.Application.Vagas.Commands.CreateVaga;
+using ATS.Application.Vagas.Commands.DeleteVaga;
+using ATS.Application.Vagas.Commands.FecharVaga;
+using ATS.Application.Vagas.Commands.UpdateVaga;
+using ATS.Application.Vagas.Queries.GetVagaById;
+using ATS.Application.Vagas.Queries.ListVagas;
 using ATS.Domain.Candidatos.Repositories;
 using ATS.Domain.Candidaturas.Repositories;
 using ATS.Domain.Vagas.Repositories;
@@ -28,6 +34,17 @@ public static class DependencyInjection
         //services.AddScoped<ICandidatoRepository,   CandidatoRepository>();
         // services.AddScoped<IVagaRepository,         VagaRepository>();
         // services.AddScoped<ICandidaturaRepository,  CandidaturaRepository>();
+
+        // ── Vagas – Commands ──────────────────────────────────────────────────
+        services.AddScoped<CreateVagaHandler>();
+        services.AddScoped<UpdateVagaHandler>();
+        services.AddScoped<DeleteVagaHandler>();
+        services.AddScoped<FecharVagaHandler>();
+
+
+        // ── Vagas – Queries ───────────────────────────────────────────────────
+        services.AddScoped<GetVagaByIdHandler>();
+        services.AddScoped<ListVagasHandler>();
 
         // ── Candidatos – Commands ─────────────────────────────────────────────
 
