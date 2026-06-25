@@ -8,5 +8,6 @@
   <Folder Name="/tests/">
     <Project Path="tests/ATS.Application.Tests/ATS.Application.Tests.csproj" />
     <Project Path="tests/ATS.Domain.Tests/ATS.Domain.Tests.csproj" />
+    <Project Path="tests/ATS.Infrastructure.Tests/ATS.Infrastructure.Tests.csproj" />
   </Folder>
 </Solution>
