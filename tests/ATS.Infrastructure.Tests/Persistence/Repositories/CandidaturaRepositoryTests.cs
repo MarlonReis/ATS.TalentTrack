@@ -14,7 +14,7 @@ public class CandidaturaRepositoryTests
 
     public CandidaturaRepositoryTests()
     {
-        _ = new MongoDbContext(new MongoDbSettings());
+        _ = new MongoDbContext(new MongoDbSettings { ConnectionString = "mongodb://localhost:27017" });
 
         var contextMock = new Mock<IMongoDbContext>(MockBehavior.Strict);
         _collectionMock = new Mock<IMongoCollection<Candidatura>>(MockBehavior.Strict);

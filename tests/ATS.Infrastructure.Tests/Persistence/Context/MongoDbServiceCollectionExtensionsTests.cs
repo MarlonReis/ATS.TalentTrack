@@ -77,18 +77,15 @@ public class MongoDbServiceCollectionExtensionsTests
     }
 
     [Fact]
-    public void DeveUsarValoresPadraoQuandoConfiguracaoMongoDbEstiverAusente()
+    public void DeveLancarExcecaoQuandoConnectionStringNaoEstiverConfigurada()
     {
         var services = new ServiceCollection();
         var configuration = CriarConfiguracao(new Dictionary<string, string?>());
 
-        services.AddMongoDb(configuration);
+        var excecao = Assert.Throws<InvalidOperationException>(
+            () => services.AddMongoDb(configuration));
 
-        var context = ObterContextoRegistrado(services);
-        var collection = context.GetCollection<DocumentoTeste>("vagas");
-
-        Assert.Equal("AtsDb", collection.Database.DatabaseNamespace.DatabaseName);
-        Assert.Equal(100, collection.Database.Client.Settings.MaxConnectionPoolSize);
+        Assert.Contains("MongoDB:ConnectionString", excecao.Message);
     }
 
     [Fact]
@@ -97,6 +94,7 @@ public class MongoDbServiceCollectionExtensionsTests
         var services = new ServiceCollection();
         var configuration = CriarConfiguracao(new Dictionary<string, string?>
         {
+            ["MongoDB:ConnectionString"] = "mongodb://localhost:27017",
             ["MongoDB:DatabaseName"] = "AtsDbAlias",
             ["MongoDB:MaxPoolSize"] = "44"
         });
@@ -108,6 +106,24 @@ public class MongoDbServiceCollectionExtensionsTests
 
         Assert.Equal("AtsDbAlias", collection.Database.DatabaseNamespace.DatabaseName);
         Assert.Equal(44, collection.Database.Client.Settings.MaxConnectionPoolSize);
+    }
+
+    [Fact]
+    public void DeveUsarValoresPadraoParaDatabaseNameEMaxPoolSizeQuandoAusentes()
+    {
+        var services = new ServiceCollection();
+        var configuration = CriarConfiguracao(new Dictionary<string, string?>
+        {
+            ["MongoDB:ConnectionString"] = "mongodb://localhost:27017"
+        });
+
+        services.AddMongoDb(configuration);
+
+        var context = ObterContextoRegistrado(services);
+        var collection = context.GetCollection<DocumentoTeste>("vagas");
+
+        Assert.Equal("AtsDb", collection.Database.DatabaseNamespace.DatabaseName);
+        Assert.Equal(100, collection.Database.Client.Settings.MaxConnectionPoolSize);
     }
 
     [Theory]

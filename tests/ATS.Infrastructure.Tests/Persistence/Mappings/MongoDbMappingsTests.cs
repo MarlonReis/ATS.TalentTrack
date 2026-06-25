@@ -13,7 +13,7 @@ public class MongoDbMappingsTests
 {
     public MongoDbMappingsTests()
     {
-        _ = new MongoDbContext(new MongoDbSettings());
+        _ = new MongoDbContext(new MongoDbSettings { ConnectionString = "mongodb://localhost:27017" });
     }
 
     [Fact]

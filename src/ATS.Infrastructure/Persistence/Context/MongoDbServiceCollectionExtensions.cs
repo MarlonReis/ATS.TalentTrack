@@ -24,9 +24,14 @@ public static class MongoDbServiceCollectionExtensions
     private static MongoDbSettings FromConfiguration(IConfiguration cfg)
     {
         var s = cfg.GetSection("MongoDB");
+        var connectionString = s["ConnectionString"]
+            ?? throw new InvalidOperationException(
+                "MongoDB:ConnectionString não está configurada. " +
+                "Defina a variável de ambiente MongoDB__ConnectionString ou adicione-a ao appsettings.");
+
         return new MongoDbSettings
         {
-            ConnectionString = s["ConnectionString"] ?? "mongodb://localhost:27017",
+            ConnectionString = connectionString,
             DatabaseName = s["DatabaseName"] ?? "AtsDb",
             MaxPoolSize = ParseInt(s["MaxConnectionPoolSize"] ?? s["MaxPoolSize"], 100)
         };

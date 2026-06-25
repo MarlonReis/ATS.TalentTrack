@@ -21,6 +21,9 @@ public sealed class AtsAlbaHostFixture : IAsyncLifetime
 
         Host = await AlbaHost.For<Program>(builder =>
         {
+            // appsettings.Test.json fornece MongoDB:ConnectionString placeholder
+            // para que AddInfrastructure não lance InvalidOperationException no startup.
+            // O ConfigureServices abaixo troca o IMongoDbContext pelo do Testcontainer.
             builder.UseEnvironment("Test");
 
             builder.ConfigureServices(services =>

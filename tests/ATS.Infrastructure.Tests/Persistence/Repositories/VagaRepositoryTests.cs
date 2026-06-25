@@ -13,7 +13,7 @@ public class VagaRepositoryTests
 
     public VagaRepositoryTests()
     {
-        _ = new MongoDbContext(new MongoDbSettings());
+        _ = new MongoDbContext(new MongoDbSettings { ConnectionString = "mongodb://localhost:27017" });
 
         var contextMock = new Mock<IMongoDbContext>(MockBehavior.Strict);
         _collectionMock = new Mock<IMongoCollection<Vaga>>(MockBehavior.Strict);
