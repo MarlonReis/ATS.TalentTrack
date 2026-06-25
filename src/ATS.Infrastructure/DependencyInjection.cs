@@ -21,19 +21,24 @@ using ATS.Application.Vagas.Queries.ListVagas;
 using ATS.Domain.Candidatos.Repositories;
 using ATS.Domain.Candidaturas.Repositories;
 using ATS.Domain.Vagas.Repositories;
+using ATS.Infrastructure.Persistence.Context;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 public static class DependencyInjection
 {
-    public static IServiceCollection AddInfrastructure(this IServiceCollection services)
+    public static IServiceCollection AddInfrastructure(
+        this IServiceCollection services,
+        IConfiguration configuration
+    )
     {
         // ── MongoDB ──────────────────────────────────────────────────────────
-        // services.AddSingleton<MongoDbContext>();
+        services.AddSingleton<IMongoDbContext>(new MongoDbContext(ReadMongoSettings(configuration)));
 
-        // ── Repositórios ─────────────────────────────────────────────────────
-        //services.AddScoped<ICandidatoRepository,   CandidatoRepository>();
-        // services.AddScoped<IVagaRepository,         VagaRepository>();
-        // services.AddScoped<ICandidaturaRepository,  CandidaturaRepository>();
+        // ── Repositórios ──────────────────────────────────────────────────────
+        // services.AddScoped<ICandidatoRepository,  CandidatoRepository>();
+        // services.AddScoped<IVagaRepository,        VagaRepository>();
+        // services.AddScoped<ICandidaturaRepository, CandidaturaRepository>();
 
         // ── Vagas – Commands ──────────────────────────────────────────────────
         services.AddScoped<CreateVagaHandler>();
@@ -69,4 +74,12 @@ public static class DependencyInjection
 
         return services;
     }
+
+    private static MongoDbSettings ReadMongoSettings(IConfiguration cfg) => new()
+    {
+        ConnectionString = cfg["MongoDB:ConnectionString"] ?? "mongodb://localhost:27017",
+        DatabaseName = cfg["MongoDB:DatabaseName"] ?? "AtsDb",
+        MaxPoolSize = int.TryParse(cfg["MongoDB:MaxPoolSize"], out var n) ? n : 100,
+    };
+
 }
