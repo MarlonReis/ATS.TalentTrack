@@ -6,6 +6,7 @@
     <Project Path="src/ATS.Infrastructure/ATS.Infrastructure.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/ATS.API.Tests/ATS.API.Tests.csproj" />
     <Project Path="tests/ATS.Application.Tests/ATS.Application.Tests.csproj" />
     <Project Path="tests/ATS.Domain.Tests/ATS.Domain.Tests.csproj" />
     <Project Path="tests/ATS.Infrastructure.Tests/ATS.Infrastructure.Tests.csproj" />
