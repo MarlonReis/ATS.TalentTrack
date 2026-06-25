@@ -28,7 +28,7 @@ public static class MongoDbServiceCollectionExtensions
         {
             ConnectionString = s["ConnectionString"] ?? "mongodb://localhost:27017",
             DatabaseName = s["DatabaseName"] ?? "AtsDb",
-            MaxPoolSize = ParseInt(s["MaxConnectionPoolSize"], 100)
+            MaxPoolSize = ParseInt(s["MaxConnectionPoolSize"] ?? s["MaxPoolSize"], 100)
         };
     }
 

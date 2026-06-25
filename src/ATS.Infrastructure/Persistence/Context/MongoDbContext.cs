@@ -1,5 +1,6 @@
 namespace ATS.Infrastructure.Persistence.Context;
 
+using ATS.Infrastructure.Persistence.Mappings;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
 using MongoDB.Bson.Serialization.Conventions;
@@ -21,6 +22,10 @@ public sealed class MongoDbContext : IMongoDbContext
             new IgnoreExtraElementsConvention(true), // tolerante a campos extras no documento
             new EnumRepresentationConvention(BsonType.String) // enum como "Aberta", não 1
         }, _ => true);
+
+        CandidatoMap.Register();
+        VagaMap.Register();
+        CandidaturaMap.Register();
     }
 
     public MongoDbContext(MongoDbSettings settings)
