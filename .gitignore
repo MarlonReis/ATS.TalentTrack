@@ -35,9 +35,6 @@ local-check.sh
 *.pfx
 *.p12
 secrets.json
-appsettings.*.json
-!appsettings.json
-!appsettings.Development.json
 
 # ─── Pacotes NuGet restaurados localmente ────────────────────────────────────
 packages/
