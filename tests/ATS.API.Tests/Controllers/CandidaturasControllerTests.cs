@@ -1,4 +1,5 @@
 using ATS.API.Controllers;
+using ATS.API.Requests.Candidaturas;
 using ATS.Application.Candidaturas.Commands.AprovarCandidatura;
 using ATS.Application.Candidaturas.Commands.CancelarCandidatura;
 using ATS.Application.Candidaturas.Commands.CandidatarSe;
@@ -166,7 +167,7 @@ public class CandidaturasControllerTests
 
         var result = await _controller.Aprovar(
             candidatura.Id,
-            new CandidaturasController.ObservacoesRequest("Perfil aderente"));
+            new ObservacoesRequest("Perfil aderente"));
 
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         var dto = Assert.IsType<CandidaturaDto>(ok.Value);
@@ -218,7 +219,7 @@ public class CandidaturasControllerTests
 
         var result = await _controller.Reprovar(
             candidatura.Id,
-            new CandidaturasController.ObservacoesRequest("Sem fit tecnico"));
+            new ObservacoesRequest("Sem fit tecnico"));
 
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         var dto = Assert.IsType<CandidaturaDto>(ok.Value);

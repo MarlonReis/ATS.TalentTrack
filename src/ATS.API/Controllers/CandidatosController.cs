@@ -1,5 +1,6 @@
 namespace ATS.API.Controllers;
 
+using ATS.API.Requests.Candidatos;
 using ATS.Application.Candidatos.Commands.AddCurriculo;
 using ATS.Application.Candidatos.Commands.CreateCandidato;
 using ATS.Application.Candidatos.Commands.DeleteCandidato;
@@ -129,14 +130,4 @@ public sealed class CandidatosController : ControllerBase
         await _deleteHandler.HandleAsync(new DeleteCandidatoCommand(id), ct);
         return NoContent();
     }
-
-    public sealed record AtualizarCandidatoRequest(
-        string Nome,
-        string Email,
-        string Telefone);
-
-    public sealed record AdicionarCurriculoRequest(
-        string NomeArquivo,
-        string ContentType,
-        string UrlOuBase64);
 }

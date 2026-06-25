@@ -1,5 +1,6 @@
 namespace ATS.API.Controllers;
 
+using ATS.API.Requests.Vagas;
 using ATS.Application.Common.Pagination;
 using ATS.Application.Vagas.Commands.CreateVaga;
 using ATS.Application.Vagas.Commands.DeleteVaga;
@@ -123,10 +124,4 @@ public sealed class VagasController : ControllerBase
         await _deleteHandler.HandleAsync(new DeleteVagaCommand(id), ct);
         return NoContent();
     }
-
-    public sealed record AtualizarVagaRequest(
-        string Titulo,
-        string Descricao,
-        string? Requisitos = null,
-        decimal Salario = 0m);
 }

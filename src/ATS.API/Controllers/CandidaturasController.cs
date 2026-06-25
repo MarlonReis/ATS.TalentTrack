@@ -1,5 +1,6 @@
 namespace ATS.API.Controllers;
 
+using ATS.API.Requests.Candidaturas;
 using ATS.Application.Candidaturas.Commands.AprovarCandidatura;
 using ATS.Application.Candidaturas.Commands.CancelarCandidatura;
 using ATS.Application.Candidaturas.Commands.CandidatarSe;
@@ -125,6 +126,4 @@ public sealed class CandidaturasController : ControllerBase
 
         return Ok(resultado);
     }
-
-    public sealed record ObservacoesRequest(string? Observacoes);
 }

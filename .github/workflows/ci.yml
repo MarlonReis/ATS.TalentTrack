@@ -123,7 +123,7 @@ jobs:
             --results-directory ./TestResults \
             -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura \
                DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.ExcludeByAttribute=GeneratedCodeAttribute \
-               DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.ExcludeByFile="**/Program.cs,**/Shared/**,**/I*.cs,**/*Command.cs,**/*Dto.cs,**/*Injection.cs,**/*Map.cs" \
+               DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.ExcludeByFile="**/Program.cs,**/Shared/**,**/I*.cs,**/*Command.cs,**/*Dto.cs,**/*Injection.cs,**/*Map.cs,**/*Request.cs" \
                DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Exclude="[*]*.Shared.*"
 
       - name: Install ReportGenerator

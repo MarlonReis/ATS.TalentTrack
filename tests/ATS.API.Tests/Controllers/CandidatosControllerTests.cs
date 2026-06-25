@@ -1,4 +1,5 @@
 using ATS.API.Controllers;
+using ATS.API.Requests.Candidatos;
 using ATS.Application.Candidatos.Commands.AddCurriculo;
 using ATS.Application.Candidatos.Commands.CreateCandidato;
 using ATS.Application.Candidatos.Commands.DeleteCandidato;
@@ -133,7 +134,7 @@ public class CandidatosControllerTests
 
         var result = await _controller.Atualizar(
             candidato.Id,
-            new CandidatosController.AtualizarCandidatoRequest(
+            new AtualizarCandidatoRequest(
                 "Maria Silva Nova",
                 "maria.nova@example.com",
                 "11888887777"));
@@ -167,7 +168,7 @@ public class CandidatosControllerTests
 
         var result = await _controller.AdicionarCurriculo(
             candidato.Id,
-            new CandidatosController.AdicionarCurriculoRequest(
+            new AdicionarCurriculoRequest(
                 "curriculo.pdf",
                 "application/pdf",
                 "base64"));

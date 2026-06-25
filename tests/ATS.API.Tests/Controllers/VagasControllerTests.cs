@@ -1,4 +1,5 @@
 using ATS.API.Controllers;
+using ATS.API.Requests.Vagas;
 using ATS.Application.Common.Pagination;
 using ATS.Application.Vagas.Commands.CreateVaga;
 using ATS.Application.Vagas.Commands.DeleteVaga;
@@ -128,7 +129,7 @@ public class VagasControllerTests
 
         var result = await _controller.Atualizar(
             vaga.Id,
-            new VagasController.AtualizarVagaRequest(
+            new AtualizarVagaRequest(
                 "Desenvolvedor Full Stack",
                 "Construir soluções",
                 "C# e React",
