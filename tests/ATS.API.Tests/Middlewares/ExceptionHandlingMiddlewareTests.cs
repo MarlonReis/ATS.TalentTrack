@@ -85,6 +85,52 @@ public class ExceptionHandlingMiddlewareTests
     }
 
     [Fact]
+    public async Task DeveResponderCorretamenteQuandoLogDomainExceptionEstiverDesabilitado()
+    {
+        var exception = new DomainException("Candidatura não encontrada.");
+        var loggerMock = new Mock<ILogger<ExceptionHandlingMiddleware>>();
+        // IsEnabled=false aciona o branch de retorno antecipado do código gerado por [LoggerMessage]
+        loggerMock.Setup(l => l.IsEnabled(It.IsAny<LogLevel>())).Returns(false);
+
+        var context = CriarContexto();
+        var middleware = new ExceptionHandlingMiddleware(
+            _ => Task.FromException(exception),
+            loggerMock.Object);
+
+        await middleware.InvokeAsync(context);
+
+        context.Response.Body.Position = 0;
+        using var json = await JsonDocument.ParseAsync(context.Response.Body);
+        Assert.Equal(StatusCodes.Status404NotFound, json.RootElement.GetProperty("status").GetInt32());
+        loggerMock.Verify(l => l.Log(
+            It.IsAny<LogLevel>(), It.IsAny<EventId>(), It.IsAny<It.IsAnyType>(),
+            It.IsAny<Exception?>(), It.IsAny<Func<It.IsAnyType, Exception?, string>>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task DeveResponderCorretamenteQuandoLogUnexpectedExceptionEstiverDesabilitado()
+    {
+        var exception = new InvalidOperationException("Erro interno.");
+        var loggerMock = new Mock<ILogger<ExceptionHandlingMiddleware>>();
+        // IsEnabled=false aciona o branch de retorno antecipado do código gerado por [LoggerMessage]
+        loggerMock.Setup(l => l.IsEnabled(It.IsAny<LogLevel>())).Returns(false);
+
+        var context = CriarContexto();
+        var middleware = new ExceptionHandlingMiddleware(
+            _ => Task.FromException(exception),
+            loggerMock.Object);
+
+        await middleware.InvokeAsync(context);
+
+        context.Response.Body.Position = 0;
+        using var json = await JsonDocument.ParseAsync(context.Response.Body);
+        Assert.Equal(StatusCodes.Status500InternalServerError, json.RootElement.GetProperty("status").GetInt32());
+        loggerMock.Verify(l => l.Log(
+            It.IsAny<LogLevel>(), It.IsAny<EventId>(), It.IsAny<It.IsAnyType>(),
+            It.IsAny<Exception?>(), It.IsAny<Func<It.IsAnyType, Exception?, string>>()), Times.Never);
+    }
+
+    [Fact]
     public async Task DeveExecutarProximoMiddlewareQuandoNaoHouverExcecao()
     {
         var loggerMock = new Mock<ILogger<ExceptionHandlingMiddleware>>();
@@ -102,6 +148,32 @@ public class ExceptionHandlingMiddlewareTests
         Assert.Equal(StatusCodes.Status204NoContent, context.Response.StatusCode);
         Assert.Equal(0, context.Response.Body.Length);
         loggerMock.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task DeveUsarStringVaziaQuandoPathForNulo()
+    {
+        var exception = new DomainException("E-mail não pode ser vazio.");
+        var loggerMock = new Mock<ILogger<ExceptionHandlingMiddleware>>();
+        loggerMock.Setup(l => l.IsEnabled(It.IsAny<LogLevel>())).Returns(true);
+
+        var context = new DefaultHttpContext { TraceIdentifier = "trace-null-path" };
+        context.Request.Method = HttpMethods.Post;
+        context.Response.Body = new MemoryStream();
+
+        // DefaultHttpRequest armazena Path como string via IHttpRequestFeature.
+        // Definir null diretamente força PathString.Value == null → aciona ?? string.Empty
+        context.Features.Get<IHttpRequestFeature>()!.Path = null!;
+
+        var middleware = new ExceptionHandlingMiddleware(
+            _ => Task.FromException(exception),
+            loggerMock.Object);
+
+        await middleware.InvokeAsync(context);
+
+        context.Response.Body.Position = 0;
+        using var json = await JsonDocument.ParseAsync(context.Response.Body);
+        Assert.Equal(StatusCodes.Status400BadRequest, json.RootElement.GetProperty("status").GetInt32());
     }
 
     [Fact]
@@ -172,6 +244,8 @@ public class ExceptionHandlingMiddlewareTests
         InvokeMiddlewareAsync(Exception exception)
     {
         var loggerMock = new Mock<ILogger<ExceptionHandlingMiddleware>>();
+        // Source-generated [LoggerMessage] verifica IsEnabled antes de logar
+        loggerMock.Setup(l => l.IsEnabled(It.IsAny<LogLevel>())).Returns(true);
         var context = CriarContexto();
         var middleware = new ExceptionHandlingMiddleware(
             _ => Task.FromException(exception),

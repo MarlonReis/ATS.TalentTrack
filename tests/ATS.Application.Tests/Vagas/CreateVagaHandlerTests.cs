@@ -3,6 +3,7 @@ using ATS.Domain.Shared;
 using ATS.Domain.Vagas.Entities;
 using ATS.Domain.Vagas.Enums;
 using ATS.Domain.Vagas.Repositories;
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Xunit;
 
@@ -16,7 +17,7 @@ public class CreateVagaHandlerTests
     public CreateVagaHandlerTests()
     {
         _repoMock = new Mock<IVagaRepository>(MockBehavior.Strict);
-        _handler = new CreateVagaHandler(_repoMock.Object);
+        _handler = new CreateVagaHandler(_repoMock.Object, NullLogger<CreateVagaHandler>.Instance);
     }
 
     [Theory]

@@ -3,14 +3,19 @@ namespace ATS.Application.Candidatos.Commands.AddCurriculo;
 using ATS.Application.Candidatos.DTOs;
 using ATS.Domain.Candidatos.Repositories;
 using ATS.Domain.Shared;
+using Microsoft.Extensions.Logging;
 
-public sealed class AddCurriculoHandler
+public sealed partial class AddCurriculoHandler
 {
     private readonly ICandidatoRepository _repository;
+    private readonly ILogger<AddCurriculoHandler> _logger;
 
-    public AddCurriculoHandler(ICandidatoRepository repository)
+    public AddCurriculoHandler(
+        ICandidatoRepository repository,
+        ILogger<AddCurriculoHandler> logger)
     {
         _repository = repository;
+        _logger = logger;
     }
 
     public async Task<CandidatoDto> HandleAsync(
@@ -27,6 +32,12 @@ public sealed class AddCurriculoHandler
 
         await _repository.AtualizarAsync(candidato, ct);
 
+        LogCurriculoAdicionado(candidato.Id, command.NomeArquivo);
+
         return CandidatoDto.FromDomain(candidato);
     }
+
+    [LoggerMessage(EventId = 1004, Level = LogLevel.Information,
+        Message = "Currículo '{NomeArquivo}' adicionado ao candidato {CandidatoId}")]
+    private partial void LogCurriculoAdicionado(Guid candidatoId, string nomeArquivo);
 }

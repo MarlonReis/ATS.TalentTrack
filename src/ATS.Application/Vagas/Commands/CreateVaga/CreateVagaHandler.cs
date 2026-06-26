@@ -4,14 +4,19 @@ using ATS.Application.Observability;
 using ATS.Application.Vagas.DTOs;
 using ATS.Domain.Vagas.Entities;
 using ATS.Domain.Vagas.Repositories;
+using Microsoft.Extensions.Logging;
 
-public sealed class CreateVagaHandler
+public sealed partial class CreateVagaHandler
 {
     private readonly IVagaRepository _repository;
+    private readonly ILogger<CreateVagaHandler> _logger;
 
-    public CreateVagaHandler(IVagaRepository repository)
+    public CreateVagaHandler(
+        IVagaRepository repository,
+        ILogger<CreateVagaHandler> logger)
     {
         _repository = repository;
+        _logger = logger;
     }
 
     public async Task<VagaDto> HandleAsync(
@@ -28,6 +33,12 @@ public sealed class CreateVagaHandler
 
         AtsMetrics.VagasCriadas.Add(1);
 
+        LogVagaCriada(vaga.Id, vaga.Titulo);
+
         return VagaDto.FromDomain(vaga);
     }
+
+    [LoggerMessage(EventId = 2001, Level = LogLevel.Information,
+        Message = "Vaga {VagaId} '{Titulo}' criada com sucesso")]
+    private partial void LogVagaCriada(Guid vagaId, string titulo);
 }

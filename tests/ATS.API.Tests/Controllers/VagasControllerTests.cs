@@ -13,6 +13,7 @@ using ATS.Domain.Vagas.Entities;
 using ATS.Domain.Vagas.Enums;
 using ATS.Domain.Vagas.Repositories;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 
 namespace ATS.API.Tests.Controllers;
@@ -27,12 +28,12 @@ public class VagasControllerTests
         _vagaRepositoryMock = new Mock<IVagaRepository>(MockBehavior.Strict);
 
         _controller = new VagasController(
-            new CreateVagaHandler(_vagaRepositoryMock.Object),
+            new CreateVagaHandler(_vagaRepositoryMock.Object, NullLogger<CreateVagaHandler>.Instance),
             new GetVagaByIdHandler(_vagaRepositoryMock.Object),
             new ListVagasHandler(_vagaRepositoryMock.Object),
-            new UpdateVagaHandler(_vagaRepositoryMock.Object),
-            new DeleteVagaHandler(_vagaRepositoryMock.Object),
-            new FecharVagaHandler(_vagaRepositoryMock.Object));
+            new UpdateVagaHandler(_vagaRepositoryMock.Object, NullLogger<UpdateVagaHandler>.Instance),
+            new DeleteVagaHandler(_vagaRepositoryMock.Object, NullLogger<DeleteVagaHandler>.Instance),
+            new FecharVagaHandler(_vagaRepositoryMock.Object, NullLogger<FecharVagaHandler>.Instance));
     }
 
     [Fact]

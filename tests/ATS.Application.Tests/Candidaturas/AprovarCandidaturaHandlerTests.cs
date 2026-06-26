@@ -7,6 +7,7 @@ using ATS.Domain.Candidaturas.Repositories;
 using ATS.Domain.Shared;
 using ATS.Domain.Vagas.Entities;
 using ATS.Domain.Vagas.Repositories;
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 
 namespace ATS.Application.Tests.Candidaturas;
@@ -30,7 +31,8 @@ public class AprovarCandidaturaHandlerTests
         _handler = new AprovarCandidaturaHandler(
             _candidaturaRepoMock.Object,
             _candidatoRepoMock.Object,
-            _vagaRepoMock.Object);
+            _vagaRepoMock.Object,
+            NullLogger<AprovarCandidaturaHandler>.Instance);
     }
 
     private static Candidatura CriarCandidatura() =>

@@ -8,32 +8,34 @@ using ATS.Domain.Candidaturas.Repositories;
 using ATS.Domain.Shared;
 using ATS.Domain.Vagas.Enums;
 using ATS.Domain.Vagas.Repositories;
+using Microsoft.Extensions.Logging;
 
-public class CandidatarSeHandler
+public partial class CandidatarSeHandler
 {
     private readonly ICandidaturaRepository _candidaturaRepository;
     private readonly ICandidatoRepository _candidatoRepository;
     private readonly IVagaRepository _vagaRepository;
+    private readonly ILogger<CandidatarSeHandler> _logger;
 
     public CandidatarSeHandler(
         ICandidaturaRepository candidaturaRepository,
         ICandidatoRepository candidatoRepository,
-        IVagaRepository vagaRepository)
+        IVagaRepository vagaRepository,
+        ILogger<CandidatarSeHandler> logger)
     {
         _candidaturaRepository = candidaturaRepository;
         _candidatoRepository = candidatoRepository;
         _vagaRepository = vagaRepository;
+        _logger = logger;
     }
 
     public async Task<CandidaturaDto> HandleAsync(
         CandidatarSeCommand command,
         CancellationToken ct = default)
     {
-        // Valida existência do candidato
         var candidato = await _candidatoRepository.ObterPorIdAsync(command.CandidatoId, ct)
             ?? throw new DomainException("Candidato não encontrado.");
 
-        // Valida existência e status da vaga
         var vaga = await _vagaRepository.ObterPorIdAsync(command.VagaId, ct)
             ?? throw new DomainException("Vaga não encontrada.");
 
@@ -42,7 +44,6 @@ public class CandidatarSeHandler
             throw new DomainException("Não é possível se candidatar a uma vaga fechada.");
         }
 
-        // Regra: candidato não pode se candidatar duas vezes à mesma vaga
         var jaCandidatou = await _candidaturaRepository.ExisteAsync(
             command.CandidatoId, command.VagaId, ct);
 
@@ -51,12 +52,17 @@ public class CandidatarSeHandler
             throw new DomainException("Candidato já se candidatou a esta vaga.");
         }
 
-        // Cria candidatura (lógica e validação no agregado)
         var candidatura = Candidatura.Criar(command.CandidatoId, command.VagaId);
         await _candidaturaRepository.AdicionarAsync(candidatura, ct);
 
         AtsMetrics.CandidaturasCriadas.Add(1);
 
+        LogCandidaturaCriada(candidatura.Id, command.CandidatoId, command.VagaId);
+
         return CandidaturaDto.FromDomain(candidatura, candidato.Nome, vaga.Titulo);
     }
+
+    [LoggerMessage(EventId = 3001, Level = LogLevel.Information,
+        Message = "Candidatura {CandidaturaId} criada: candidato {CandidatoId} → vaga {VagaId}")]
+    private partial void LogCandidaturaCriada(Guid candidaturaId, Guid candidatoId, Guid vagaId);
 }

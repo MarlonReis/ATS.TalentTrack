@@ -3,14 +3,19 @@ namespace ATS.Application.Candidatos.Commands.UpdateCandidato;
 using ATS.Application.Candidatos.DTOs;
 using ATS.Domain.Candidatos.Repositories;
 using ATS.Domain.Shared;
+using Microsoft.Extensions.Logging;
 
-public sealed class UpdateCandidatoHandler
+public sealed partial class UpdateCandidatoHandler
 {
     private readonly ICandidatoRepository _repository;
+    private readonly ILogger<UpdateCandidatoHandler> _logger;
 
-    public UpdateCandidatoHandler(ICandidatoRepository repository)
+    public UpdateCandidatoHandler(
+        ICandidatoRepository repository,
+        ILogger<UpdateCandidatoHandler> logger)
     {
         _repository = repository;
+        _logger = logger;
     }
 
     public async Task<CandidatoDto> HandleAsync(
@@ -31,6 +36,12 @@ public sealed class UpdateCandidatoHandler
 
         await _repository.AtualizarAsync(candidato, ct);
 
+        LogCandidatoAtualizado(candidato.Id);
+
         return CandidatoDto.FromDomain(candidato);
     }
+
+    [LoggerMessage(EventId = 1002, Level = LogLevel.Information,
+        Message = "Candidato {CandidatoId} atualizado com sucesso")]
+    private partial void LogCandidatoAtualizado(Guid candidatoId);
 }

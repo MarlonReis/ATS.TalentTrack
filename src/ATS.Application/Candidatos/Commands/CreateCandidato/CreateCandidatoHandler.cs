@@ -5,14 +5,19 @@ using ATS.Application.Observability;
 using ATS.Domain.Candidatos.Entities;
 using ATS.Domain.Candidatos.Repositories;
 using ATS.Domain.Shared;
+using Microsoft.Extensions.Logging;
 
-public class CreateCandidatoHandler
+public partial class CreateCandidatoHandler
 {
     private readonly ICandidatoRepository _repository;
+    private readonly ILogger<CreateCandidatoHandler> _logger;
 
-    public CreateCandidatoHandler(ICandidatoRepository repository)
+    public CreateCandidatoHandler(
+        ICandidatoRepository repository,
+        ILogger<CreateCandidatoHandler> logger)
     {
         _repository = repository;
+        _logger = logger;
     }
 
     public async Task<CandidatoDto> HandleAsync(
@@ -31,6 +36,12 @@ public class CreateCandidatoHandler
 
         AtsMetrics.CandidatosCriados.Add(1);
 
+        LogCandidatoCriado(candidato.Id);
+
         return CandidatoDto.FromDomain(candidato);
     }
+
+    [LoggerMessage(EventId = 1001, Level = LogLevel.Information,
+        Message = "Candidato {CandidatoId} criado com sucesso")]
+    private partial void LogCandidatoCriado(Guid candidatoId);
 }

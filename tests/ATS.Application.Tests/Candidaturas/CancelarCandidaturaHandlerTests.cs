@@ -7,6 +7,7 @@ using ATS.Domain.Candidaturas.Repositories;
 using ATS.Domain.Shared;
 using ATS.Domain.Vagas.Entities;
 using ATS.Domain.Vagas.Repositories;
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Xunit;
 
@@ -31,7 +32,8 @@ public class CancelarCandidaturaHandlerTests
         _handler = new CancelarCandidaturaHandler(
             _candidaturaRepoMock.Object,
             _candidatoRepoMock.Object,
-            _vagaRepoMock.Object);
+            _vagaRepoMock.Object,
+            NullLogger<CancelarCandidaturaHandler>.Instance);
     }
 
     private static Candidato CriarCandidato() =>

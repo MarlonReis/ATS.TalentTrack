@@ -2,6 +2,7 @@ using ATS.Application.Candidatos.Commands.UpdateCandidato;
 using ATS.Domain.Candidatos.Entities;
 using ATS.Domain.Candidatos.Repositories;
 using ATS.Domain.Shared;
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Xunit;
 
@@ -17,7 +18,7 @@ public class UpdateCandidatoHandlerTests
     public UpdateCandidatoHandlerTests()
     {
         _repoMock = new Mock<ICandidatoRepository>(MockBehavior.Strict);
-        _handler = new UpdateCandidatoHandler(_repoMock.Object);
+        _handler = new UpdateCandidatoHandler(_repoMock.Object, NullLogger<UpdateCandidatoHandler>.Instance);
     }
 
     private static Candidato CriarCandidato(

@@ -16,6 +16,7 @@ using ATS.Domain.Shared;
 using ATS.Domain.Vagas.Entities;
 using ATS.Domain.Vagas.Repositories;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 
 namespace ATS.API.Tests.Controllers;
@@ -37,7 +38,8 @@ public class CandidaturasControllerTests
             new CandidatarSeHandler(
                 _candidaturaRepositoryMock.Object,
                 _candidatoRepositoryMock.Object,
-                _vagaRepositoryMock.Object),
+                _vagaRepositoryMock.Object,
+                NullLogger<CandidatarSeHandler>.Instance),
             new GetCandidaturaByIdHandler(
                 _candidaturaRepositoryMock.Object,
                 _candidatoRepositoryMock.Object,
@@ -45,15 +47,18 @@ public class CandidaturasControllerTests
             new AprovarCandidaturaHandler(
                 _candidaturaRepositoryMock.Object,
                 _candidatoRepositoryMock.Object,
-                _vagaRepositoryMock.Object),
+                _vagaRepositoryMock.Object,
+                NullLogger<AprovarCandidaturaHandler>.Instance),
             new ReprovarCandidaturaHandler(
                 _candidaturaRepositoryMock.Object,
                 _candidatoRepositoryMock.Object,
-                _vagaRepositoryMock.Object),
+                _vagaRepositoryMock.Object,
+                NullLogger<ReprovarCandidaturaHandler>.Instance),
             new CancelarCandidaturaHandler(
                 _candidaturaRepositoryMock.Object,
                 _candidatoRepositoryMock.Object,
-                _vagaRepositoryMock.Object),
+                _vagaRepositoryMock.Object,
+                NullLogger<CancelarCandidaturaHandler>.Instance),
             new ListCandidatosPorVagaHandler(
                 _candidaturaRepositoryMock.Object,
                 _candidatoRepositoryMock.Object,

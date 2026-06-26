@@ -4,6 +4,7 @@ using ATS.Domain.Shared;
 using ATS.Domain.Vagas.Entities;
 using ATS.Domain.Vagas.Enums;
 using ATS.Domain.Vagas.Repositories;
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Xunit;
 
@@ -18,7 +19,7 @@ public class FecharVagaHandlerTests
     public FecharVagaHandlerTests()
     {
         _repoMock = new Mock<IVagaRepository>(MockBehavior.Strict);
-        _handler = new FecharVagaHandler(_repoMock.Object);
+        _handler = new FecharVagaHandler(_repoMock.Object, NullLogger<FecharVagaHandler>.Instance);
     }
 
     private static Vaga CriarVagaAberta(string titulo = "Dev Back-end") =>

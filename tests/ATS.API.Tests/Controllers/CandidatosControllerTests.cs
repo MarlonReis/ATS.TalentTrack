@@ -12,6 +12,7 @@ using ATS.Domain.Candidatos.Entities;
 using ATS.Domain.Candidatos.Repositories;
 using ATS.Domain.Shared;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 
 namespace ATS.API.Tests.Controllers;
@@ -26,12 +27,12 @@ public class CandidatosControllerTests
         _candidatoRepositoryMock = new Mock<ICandidatoRepository>(MockBehavior.Strict);
 
         _controller = new CandidatosController(
-            new CreateCandidatoHandler(_candidatoRepositoryMock.Object),
+            new CreateCandidatoHandler(_candidatoRepositoryMock.Object, NullLogger<CreateCandidatoHandler>.Instance),
             new GetCandidatoByIdHandler(_candidatoRepositoryMock.Object),
             new ListCandidatosHandler(_candidatoRepositoryMock.Object),
-            new UpdateCandidatoHandler(_candidatoRepositoryMock.Object),
-            new DeleteCandidatoHandler(_candidatoRepositoryMock.Object),
-            new AddCurriculoHandler(_candidatoRepositoryMock.Object));
+            new UpdateCandidatoHandler(_candidatoRepositoryMock.Object, NullLogger<UpdateCandidatoHandler>.Instance),
+            new DeleteCandidatoHandler(_candidatoRepositoryMock.Object, NullLogger<DeleteCandidatoHandler>.Instance),
+            new AddCurriculoHandler(_candidatoRepositoryMock.Object, NullLogger<AddCurriculoHandler>.Instance));
     }
 
     [Fact]

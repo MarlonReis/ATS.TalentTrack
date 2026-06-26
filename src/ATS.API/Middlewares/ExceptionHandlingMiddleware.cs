@@ -3,8 +3,9 @@ namespace ATS.API.Middlewares;
 using System.Text.Json;
 using ATS.Domain.Shared;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 
-public sealed class ExceptionHandlingMiddleware
+public sealed partial class ExceptionHandlingMiddleware
 {
     private static readonly JsonSerializerOptions _jsonOptions = new(JsonSerializerDefaults.Web);
 
@@ -34,18 +35,17 @@ public sealed class ExceptionHandlingMiddleware
     private async Task HandleExceptionAsync(HttpContext context, Exception exception)
     {
         var statusCode = ResolveStatusCode(exception);
+        var traceId = context.TraceIdentifier;
+        var method = context.Request.Method;
+        var path = context.Request.Path.Value ?? string.Empty;
 
         if (exception is DomainException)
         {
-            _logger.LogWarning(exception, "Erro de domínio ao processar {Method} {Path}.",
-                context.Request.Method,
-                context.Request.Path);
+            LogDomainException(method, path, statusCode, traceId, exception);
         }
         else
         {
-            _logger.LogError(exception, "Erro inesperado ao processar {Method} {Path}.",
-                context.Request.Method,
-                context.Request.Path);
+            LogUnexpectedException(method, path, statusCode, traceId, exception);
         }
 
         var problem = new ProblemDetails
@@ -56,7 +56,7 @@ public sealed class ExceptionHandlingMiddleware
             Instance = context.Request.Path
         };
 
-        problem.Extensions["traceId"] = context.TraceIdentifier;
+        problem.Extensions["traceId"] = traceId;
 
         context.Response.Clear();
         context.Response.StatusCode = statusCode;
@@ -111,4 +111,14 @@ public sealed class ExceptionHandlingMiddleware
 
     private static bool Contains(string value, string text) =>
         value.Contains(text, StringComparison.OrdinalIgnoreCase);
+
+    [LoggerMessage(EventId = 9001, Level = LogLevel.Warning,
+        Message = "Erro de domínio em {Method} {Path} → HTTP {StatusCode} (traceId: {TraceId})")]
+    private partial void LogDomainException(
+        string method, string path, int statusCode, string traceId, Exception exception);
+
+    [LoggerMessage(EventId = 9002, Level = LogLevel.Error,
+        Message = "Erro inesperado em {Method} {Path} → HTTP {StatusCode} (traceId: {TraceId})")]
+    private partial void LogUnexpectedException(
+        string method, string path, int statusCode, string traceId, Exception exception);
 }

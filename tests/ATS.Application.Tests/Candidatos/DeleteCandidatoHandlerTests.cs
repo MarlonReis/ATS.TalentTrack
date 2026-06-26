@@ -2,6 +2,7 @@ using ATS.Application.Candidatos.Commands.DeleteCandidato;
 using ATS.Domain.Candidatos.Entities;
 using ATS.Domain.Candidatos.Repositories;
 using ATS.Domain.Shared;
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Xunit;
 
@@ -15,7 +16,7 @@ public class DeleteCandidatoHandlerTests
     public DeleteCandidatoHandlerTests()
     {
         _repoMock = new Mock<ICandidatoRepository>(MockBehavior.Strict);
-        _handler = new DeleteCandidatoHandler(_repoMock.Object);
+        _handler = new DeleteCandidatoHandler(_repoMock.Object, NullLogger<DeleteCandidatoHandler>.Instance);
     }
 
     [Theory]
