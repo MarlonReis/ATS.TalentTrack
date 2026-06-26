@@ -157,7 +157,7 @@ jobs:
               sys.exit(1)
 
           coverage  = (total_covered / total_valid) * 100
-          threshold = int(os.environ.get('COVERAGE_THRESHOLD', '30'))
+          threshold = int(os.environ.get('COVERAGE_THRESHOLD', '40'))
 
           print(f'Cobertura de linhas: {coverage:.1f}%  ({total_covered}/{total_valid} linhas)')
 
