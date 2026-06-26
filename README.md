@@ -2,11 +2,18 @@
 
 > REST API para gerenciamento de processos seletivos, construída com ASP.NET Core 10, Domain-Driven Design e observabilidade de produção.
 
-[![CI](https://github.com/marlongreis91/ATS.Solution/actions/workflows/ci.yml/badge.svg)](https://github.com/marlongreis91/ATS.Solution/actions/workflows/ci.yml)
-[![.NET](https://img.shields.io/badge/.NET-10.0-512BD4)](https://dotnet.microsoft.com)
-[![MongoDB](https://img.shields.io/badge/MongoDB-7.0-47A248)](https://www.mongodb.com)
-[![BDD](https://img.shields.io/badge/BDD-Gherkin-brightgreen)](docs/bdd/README.md)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![.NET](https://img.shields.io/badge/.NET-10.0-512BD4?style=flat-square)](https://dotnet.microsoft.com)
+[![MongoDB](https://img.shields.io/badge/MongoDB-7.0-47A248?style=flat-square)](https://www.mongodb.com)
+[![BDD](https://img.shields.io/badge/BDD-Gherkin-brightgreen?style=flat-square)](docs/bdd/README.md)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
+[![CI](https://github.com/MarlonReis/ATS.TalentTrack/actions/workflows/ci.yml/badge.svg)](https://github.com/MarlonReis/ATS.TalentTrack/actions/workflows/ci.yml)
+![Testes](https://img.shields.io/badge/testes-645%20passing-brightgreen?style=flat-square)
+![Testes unitarios](https://img.shields.io/badge/unit%20tests-594-brightgreen?style=flat-square)
+![Testes E2E](https://img.shields.io/badge/e2e%20tests-51-blue?style=flat-square)
+![Cobertura de testes](https://img.shields.io/badge/cobertura-98.2%25-brightgreen?style=flat-square)
+![Cobertura minima](https://img.shields.io/badge/coverage%20gate-30%25-brightgreen?style=flat-square)
+![Vulnerabilidades](https://img.shields.io/badge/vulnerabilidades-0-brightgreen?style=flat-square)
+![Issues](https://img.shields.io/github/issues/MarlonReis/ATS.TalentTrack?style=flat-square)
 
 ---
 
@@ -458,6 +465,8 @@ O projeto possui **645 testes** distribuídos em cinco projetos:
 | `ATS.API.Tests` | Unitário | Controllers, ExceptionHandlingMiddleware, ObservabilityExtensions |
 | `ATS.E2E.Tests` | E2E | Fluxos completos com Testcontainers + MongoDB real |
 
+Resumo refletido nos badges do topo: **594** testes unitários/integração sem E2E + **51** testes E2E = **645** testes.
+
 ### Executar todos os testes unitários
 
 ```bash
@@ -481,6 +490,8 @@ dotnet test
 ---
 
 ## Cobertura de código
+
+Cobertura atual de linhas: **98.2%** (`942/959` linhas cobertas), conforme o relatório local em `coverage-report/Summary.txt`.
 
 ### Coletar cobertura
 
