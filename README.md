@@ -11,7 +11,6 @@
 ![Testes unitarios](https://img.shields.io/badge/unit%20tests-594-brightgreen?style=flat-square)
 ![Testes E2E](https://img.shields.io/badge/e2e%20tests-51-blue?style=flat-square)
 ![Cobertura de testes](https://img.shields.io/badge/cobertura-98.2%25-brightgreen?style=flat-square)
-![Cobertura minima](https://img.shields.io/badge/coverage%20gate-30%25-brightgreen?style=flat-square)
 ![Vulnerabilidades](https://img.shields.io/badge/vulnerabilidades-0-brightgreen?style=flat-square)
 ![Issues](https://img.shields.io/github/issues/MarlonReis/ATS.TalentTrack?style=flat-square)
 
@@ -36,6 +35,7 @@
 - [Banco de dados](#banco-de-dados)
 - [Swagger / OpenAPI](#swagger--openapi)
 - [Endpoints da API](#endpoints-da-api)
+- [Diagramas de sequência](#diagramas-de-sequência)
 - [Testes](#testes)
 - [Cobertura de código](#cobertura-de-código)
 - [Observabilidade](#observabilidade)
@@ -91,21 +91,22 @@ O projeto segue a arquitetura em camadas do **Domain-Driven Design (DDD)**, com 
 ┌─────────────────────────────────────────────────────────────┐
 │                        ATS.API                              │
 │  Controllers · Middlewares · Observability · Program.cs     │
-└────────────────────────────┬────────────────────────────────┘
-                             │ depende de
-┌────────────────────────────▼────────────────────────────────┐
-│                     ATS.Application                         │
-│  Commands · Queries · Handlers · DTOs · Metrics             │
-└────────┬───────────────────────────────────────┬────────────┘
-         │ depende de                            │ depende de
-┌────────▼───────────┐              ┌────────────▼────────────┐
-│    ATS.Domain      │              │    ATS.Infrastructure    │
-│  Entities · VOs    │◄─interfaces──│  Repositories · MongoDB  │
-│  Aggregates        │              │  Mappings · Health Checks │
-│  Domain Events     │              └─────────────────────────┘
-│  DomainException   │
-└────────────────────┘
+└───────────────┬───────────────────────────────┬─────────────┘
+                │ usa handlers                  │ usa DI concreta
+┌───────────────▼────────────────┐   ┌──────────▼─────────────┐
+│        ATS.Application          │   │    ATS.Infrastructure   │
+│ Commands · Queries · Handlers   │   │ Repositories · MongoDB  │
+│ DTOs · Metrics                  │   │ Mappings · Health Checks│
+└───────────────┬────────────────┘   └──────────┬─────────────┘
+                │ depende de                     │ implementa interfaces
+┌───────────────▼────────────────────────────────▼─────────────┐
+│                         ATS.Domain                            │
+│ Entities · Value Objects · Aggregates · Domain Events         │
+│ Repository Interfaces · DomainException                       │
+└───────────────────────────────────────────────────────────────┘
 ```
+
+> **Nota arquitetural:** `ATS.Application` não referencia `ATS.Infrastructure`. A API referencia os dois projetos e usa `ATS.Infrastructure.DependencyInjection` como composition root prático para registrar repositórios, health checks e handlers. Em uma Clean Architecture mais estrita, os registros de handlers poderiam viver em um `ATS.Application.DependencyInjection` separado.
 
 ### Responsabilidades por camada
 
@@ -429,7 +430,7 @@ GET    /api/v1/vagas                   → 200 OK (paginado)
 GET    /api/v1/vagas/{id}              → 200 OK | 404 Not Found
 PUT    /api/v1/vagas/{id}              → 200 OK | 404 Not Found
 DELETE /api/v1/vagas/{id}              → 204 No Content | 404 Not Found
-POST   /api/v1/vagas/{id}/fechar       → 200 OK | 404 Not Found | 409 Conflict
+PATCH  /api/v1/vagas/{id}/fechar       → 200 OK | 404 Not Found | 409 Conflict
 ```
 
 ### Candidaturas
@@ -437,10 +438,10 @@ POST   /api/v1/vagas/{id}/fechar       → 200 OK | 404 Not Found | 409 Conflict
 ```
 POST   /api/v1/candidaturas                        → 201 Created | 409 Conflict
 GET    /api/v1/candidaturas/{id}                   → 200 OK | 404 Not Found
-GET    /api/v1/candidaturas/vaga/{vagaId}           → 200 OK (paginado)
-POST   /api/v1/candidaturas/{id}/aprovar            → 200 OK | 404 | 409 Conflict
-POST   /api/v1/candidaturas/{id}/reprovar           → 200 OK | 404 | 409 Conflict
-POST   /api/v1/candidaturas/{id}/cancelar           → 200 OK | 404 | 409 Conflict
+GET    /api/v1/candidaturas/vagas/{vagaId}/candidatos → 200 OK | 404 Not Found
+PATCH  /api/v1/candidaturas/{id}/aprovar              → 200 OK | 404 | 409 Conflict
+PATCH  /api/v1/candidaturas/{id}/reprovar             → 200 OK | 404 | 409 Conflict
+PATCH  /api/v1/candidaturas/{id}/cancelar             → 200 OK | 404 | 409 Conflict
 ```
 
 ### Infraestrutura
@@ -450,6 +451,778 @@ GET    /health/live    → 200 OK | 503 Service Unavailable
 GET    /health/ready   → 200 OK | 503 Service Unavailable
 GET    /metrics        → texto Prometheus
 ```
+
+---
+
+## Diagramas de sequência
+
+Os diagramas abaixo foram derivados diretamente dos controllers, handlers, entidades de domínio, repositórios, middlewares e configurações de inicialização do projeto. A notação usa chamadas `->>` para invocações aguardadas, retornos `-->>`, blocos `alt/else` para variações de regra de negócio, `opt` para comportamento opcional, `loop` para iteração e `critical` para trechos onde a consistência da persistência é relevante.
+
+### 1. Pipeline HTTP, observabilidade e tratamento transversal
+
+Este fluxo é executado em toda requisição HTTP atendida pela API. Ele mostra a ordem real configurada em `Program.cs`: headers encaminhados, logs/tracing, headers de segurança, tratamento centralizado de exceções, CORS, autorização e roteamento para controllers.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Cliente
+    participant Kestrel as Kestrel / ASP.NET Core
+    participant Obs as Serilog + OpenTelemetry
+    participant Sec as Headers de seguranca
+    participant Ex as ExceptionHandlingMiddleware
+    participant Cors as CORS
+    participant Authz as Authorization Middleware
+    participant Router as Endpoint Routing
+    participant Controller as Controller
+
+    Cliente->>+Kestrel: HTTP request
+    Kestrel->>Kestrel: UseForwardedHeaders()
+    Kestrel->>+Obs: UseSerilogRequestLogging()
+    Note over Obs: Enriquece logs com host, scheme, IP remoto e reduz ruido de /health e /metrics.
+    Obs->>+Sec: adiciona headers defensivos
+    Sec->>+Ex: next()
+    Ex->>+Cors: aplica politica DefaultCors
+    Cors->>+Authz: UseAuthorization()
+    Note over Authz: Nao ha autenticacao nem policies configuradas no estado atual.
+    Authz->>+Router: MapControllers()
+    Router->>+Controller: action HTTP correspondente
+    alt fluxo concluido com sucesso
+        Controller-->>-Router: IActionResult / DTO
+        Router-->>-Authz: resposta HTTP
+        Authz-->>-Cors: resposta HTTP
+        Cors-->>-Ex: resposta HTTP
+        Ex-->>-Sec: resposta HTTP
+        Sec-->>-Obs: resposta HTTP
+        Obs-->>-Kestrel: log/span finalizado
+        Kestrel-->>-Cliente: 2xx / 3xx / 4xx conhecido
+    else excecao antes de Response.HasStarted
+        Controller--x Ex: Exception
+        Ex->>Ex: ResolveStatusCode + ProblemDetails
+        Ex-->>Cliente: application/problem+json
+    end
+```
+
+**Passo a passo**
+
+1. O ASP.NET Core recebe a requisição, normaliza os cabeçalhos encaminhados por proxy e inicia logging/tracing.
+2. O middleware de segurança adiciona cabeçalhos defensivos como `X-Content-Type-Options`, `X-Frame-Options` e `Referrer-Policy`.
+3. `ExceptionHandlingMiddleware` envolve o restante do pipeline para transformar exceções em `ProblemDetails`.
+4. CORS e autorização são avaliados antes do roteamento para controllers.
+5. Em sucesso, o controller retorna o resultado HTTP. Em erro não tratado, o middleware central converte a exceção para uma resposta padronizada.
+
+### 2. Autenticação e autorização no estado atual
+
+Este diagrama documenta explicitamente o comportamento de segurança existente. O projeto chama `UseAuthorization()`, mas não registra `AddAuthentication()`, não chama `UseAuthentication()` e os controllers não possuem `[Authorize]`. Portanto, as rotas atuais são públicas do ponto de vista de autenticação/autorização da aplicação.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Cliente
+    participant API as ATS.API Pipeline
+    participant Authn as Authentication Middleware
+    participant Authz as Authorization Middleware
+    participant Controller as Controller publico
+
+    Cliente->>+API: HTTP request com ou sem Authorization header
+    Note over API,Authn: Nao existe UseAuthentication() no pipeline atual.
+    opt Authorization header enviado
+        API->>API: header permanece disponivel na requisicao
+        Note right of API: Nenhum token JWT/Bearer e validado pela aplicacao.
+    end
+    API->>+Authz: UseAuthorization()
+    alt endpoint com [Authorize] ou policy configurada
+        Note over Authz: Fluxo reservado para evolucao futura.
+        Authz-->>API: 401 Unauthorized ou 403 Forbidden
+    else estado atual: endpoints sem [Authorize]
+        Authz-->>-API: prossegue sem desafio de seguranca
+        API->>+Controller: executa action
+        Controller-->>-API: resposta HTTP
+        API-->>-Cliente: resposta da rota publica
+    end
+```
+
+**Passo a passo**
+
+1. O cliente pode enviar ou omitir um cabeçalho `Authorization`; hoje isso não altera o comportamento da API.
+2. Como não há middleware de autenticação, nenhum principal autenticado é construído.
+3. `UseAuthorization()` não encontra metadados de autorização nos endpoints e permite a execução.
+4. A implementação de JWT, roles e policies está registrada no Roadmap como melhoria futura.
+
+### 3. Criação de candidato
+
+Executado em `POST /api/v1/candidatos`. O fluxo cria um candidato após validar unicidade de e-mail, construir o agregado no domínio e persistir no MongoDB.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Cliente
+    participant Controller as CandidatosController
+    participant Handler as CreateCandidatoHandler
+    participant Repo as ICandidatoRepository
+    participant Mongo as MongoDB.candidatos
+    participant Domain as Candidato + Value Objects
+    participant Metrics as AtsMetrics
+
+    Cliente->>+Controller: POST /api/v1/candidatos
+    Controller->>+Handler: HandleAsync(CreateCandidatoCommand)
+    Handler->>+Repo: ObterPorEmailAsync(email)
+    Repo->>+Mongo: await Find(email.value)
+    Mongo-->>-Repo: Candidato? existente
+    Repo-->>-Handler: Candidato? existente
+    alt e-mail ja cadastrado
+        Handler--x Controller: DomainException("Ja existe...")
+        Note over Handler,Controller: ExceptionHandlingMiddleware converte para 409 Conflict.
+    else e-mail disponivel
+        Handler->>+Domain: Candidato.Criar(nome, email, telefone)
+        Domain->>Domain: Email.Create() + Telefone.Create()
+        alt dados invalidos
+            Domain--x Handler: DomainException
+            Note right of Domain: Nome, e-mail e telefone sao validados no dominio.
+        else agregado valido
+            Domain-->>-Handler: Candidato com CandidatoCriadoEvent
+            critical Persistencia do novo agregado
+                Handler->>+Repo: AdicionarAsync(candidato)
+                Repo->>+Mongo: await InsertOneAsync(candidato)
+                Mongo-->>-Repo: documento gravado
+                Repo-->>-Handler: ok
+            end
+            Handler->>Metrics: CandidatosCriados.Add(1)
+            Handler-->>-Controller: CandidatoDto
+            Controller-->>-Cliente: 201 Created + Location
+        end
+    end
+```
+
+**Passo a passo**
+
+1. O controller recebe o `CreateCandidatoCommand` via model binding e delega a regra para o handler.
+2. O handler consulta o repositório por e-mail para bloquear duplicidade antes da criação.
+3. O domínio valida nome, e-mail e telefone, normalizando e-mail para minúsculas e telefone para dígitos.
+4. O repositório grava o documento em `candidatos`; a infraestrutura também cria índice único em `email.value`.
+5. A métrica de negócio é incrementada e a API responde `201 Created`.
+
+### 4. Publicação e fechamento de vaga
+
+Este fluxo cobre `POST /api/v1/vagas` e `PATCH /api/v1/vagas/{id}/fechar`. Ele evidencia as regras de domínio de publicação, validação de salário e transição de estado da vaga.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Cliente
+    participant Controller as VagasController
+    participant CreateHandler as CreateVagaHandler
+    participant FecharHandler as FecharVagaHandler
+    participant Repo as IVagaRepository
+    participant Mongo as MongoDB.vagas
+    participant Domain as Vaga + Salario
+    participant Metrics as AtsMetrics
+
+    alt publicar vaga
+        Cliente->>+Controller: POST /api/v1/vagas
+        Controller->>+CreateHandler: HandleAsync(CreateVagaCommand)
+        CreateHandler->>+Domain: Vaga.Criar(titulo, descricao, requisitos, salario)
+        Domain->>Domain: Salario.Create()
+        alt dados invalidos
+            Domain--x CreateHandler: DomainException
+            Note over Domain,CreateHandler: Titulo, descricao e salario sao invariantes do dominio.
+        else vaga valida
+            Domain-->>-CreateHandler: Vaga Aberta + VagaPublicadaEvent
+            CreateHandler->>+Repo: AdicionarAsync(vaga)
+            Repo->>+Mongo: await InsertOneAsync(vaga)
+            Mongo-->>-Repo: documento gravado
+            Repo-->>-CreateHandler: ok
+            CreateHandler->>Metrics: VagasCriadas.Add(1)
+            CreateHandler-->>-Controller: VagaDto
+            Controller-->>Cliente: 201 Created
+        end
+    else fechar vaga
+        Cliente->>+Controller: PATCH /api/v1/vagas/{id}/fechar
+        Controller->>+FecharHandler: HandleAsync(FecharVagaCommand)
+        FecharHandler->>+Repo: ObterPorIdAsync(id)
+        Repo->>+Mongo: await Find(vaga.Id)
+        Mongo-->>-Repo: Vaga?
+        Repo-->>-FecharHandler: Vaga?
+        alt vaga inexistente
+            FecharHandler--x Controller: DomainException("Vaga nao encontrada.")
+        else vaga encontrada
+            FecharHandler->>+Domain: vaga.Fechar()
+            alt vaga ja fechada
+                Domain--x FecharHandler: DomainException("Vaga ja esta fechada.")
+            else transicao permitida
+                Domain-->>-FecharHandler: Status = Fechada
+                FecharHandler->>+Repo: AtualizarAsync(vaga)
+                Repo->>+Mongo: await ReplaceOneAsync(vaga)
+                Mongo-->>-Repo: documento atualizado
+                Repo-->>-FecharHandler: ok
+                FecharHandler-->>-Controller: VagaDto
+                Controller-->>Cliente: 200 OK
+            end
+        end
+    end
+```
+
+**Passo a passo**
+
+1. Na publicação, a entidade `Vaga` valida título, descrição e salário, cria o agregado em estado `Aberta` e registra `VagaPublicadaEvent`.
+2. Na persistência, `VagaRepository` grava em `vagas` usando `MongoDB.Driver`.
+3. No fechamento, o handler busca a vaga antes de alterar o estado.
+4. `Vaga.Fechar()` impede fechar uma vaga que já está fechada; o middleware traduz esse caso para `409 Conflict`.
+5. A atualização é feita por substituição do documento da vaga.
+
+### 5. Consultas por ID e listagens paginadas
+
+Executado em `GET /api/v1/candidatos`, `GET /api/v1/candidatos/{id}`, `GET /api/v1/vagas` e `GET /api/v1/vagas/{id}`. O fluxo mostra a separação entre queries, repositórios e projeção para DTO.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Cliente
+    participant Controller as Controller
+    participant Handler as Query Handler
+    participant Repo as Repository Interface
+    participant Mongo as MongoDB
+    participant DTO as DTO Mapper
+
+    alt consulta por ID
+        Cliente->>+Controller: GET /api/v1/{recurso}/{id}
+        Controller->>+Handler: HandleAsync(GetByIdQuery)
+        Handler->>+Repo: ObterPorIdAsync(id)
+        Repo->>+Mongo: await Find(id)
+        Mongo-->>-Repo: agregado?
+        Repo-->>-Handler: agregado?
+        alt nao encontrado
+            Handler--x Controller: DomainException("nao encontrado")
+        else encontrado
+            Handler->>DTO: FromDomain(agregado)
+            DTO-->>Handler: DTO
+            Handler-->>-Controller: DTO
+            Controller-->>Cliente: 200 OK
+        end
+    else listagem paginada
+        Cliente->>+Controller: GET /api/v1/{recurso}?pagina=&tamanhoPagina=
+        Controller->>+Handler: HandleAsync(ListQuery)
+        Handler->>Handler: validar pagina >= 1 e tamanho entre 1 e 100
+        alt paginacao invalida
+            Handler--x Controller: DomainException
+        else paginacao valida
+            alt recurso = Vagas
+                par buscar pagina
+                    Handler->>+Repo: ListarAsync(pagina, tamanho)
+                    Repo->>+Mongo: await Find().Skip().Limit()
+                    Mongo-->>-Repo: vagas
+                    Repo-->>-Handler: vagas
+                and contar total
+                    Handler->>+Repo: ContarAsync()
+                    Repo->>+Mongo: await CountDocuments()
+                    Mongo-->>-Repo: total
+                    Repo-->>-Handler: total
+                end
+                opt status informado
+                    Handler->>Handler: filtrar status em memoria
+                    Note right of Handler: O total retornado representa a colecao completa, nao o total filtrado.
+                end
+            else recurso = Candidatos
+                Handler->>+Repo: ListarAsync(pagina, tamanho)
+                Repo->>+Mongo: await Find().Skip().Limit()
+                Mongo-->>-Repo: candidatos
+                Repo-->>-Handler: candidatos
+                Handler->>+Repo: ContarAsync()
+                Repo->>+Mongo: await CountDocuments()
+                Mongo-->>-Repo: total
+                Repo-->>-Handler: total
+            end
+            Handler->>DTO: FromDomain(items)
+            Handler-->>-Controller: PagedResult<TDto>
+            Controller-->>Cliente: 200 OK
+        end
+    end
+```
+
+**Passo a passo**
+
+1. Consultas por ID retornam `404` via `DomainException` quando o agregado não existe.
+2. Listagens validam paginação no handler, não no controller.
+3. Repositórios isolam a API do `MongoDB.Driver`.
+4. `ListVagasHandler` busca lista e total em paralelo com `Task.WhenAll`.
+5. DTOs são montados na camada Application, mantendo o domínio livre de detalhes HTTP.
+
+### 6. Atualização de candidato e vaga
+
+Executado em `PUT /api/v1/candidatos/{id}` e `PUT /api/v1/vagas/{id}`. O fluxo mostra validações de existência, conflitos de e-mail e regras de edição de vaga fechada.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Cliente
+    participant Controller as Controller
+    participant Handler as Update Handler
+    participant Repo as Repository Interface
+    participant Mongo as MongoDB
+    participant Domain as Aggregate Root
+
+    Cliente->>+Controller: PUT /api/v1/{recurso}/{id}
+    Controller->>+Handler: HandleAsync(UpdateCommand)
+    Handler->>+Repo: ObterPorIdAsync(id)
+    Repo->>+Mongo: await Find(id)
+    Mongo-->>-Repo: agregado?
+    Repo-->>-Handler: agregado?
+    alt recurso inexistente
+        Handler--x Controller: DomainException("nao encontrado")
+    else recurso encontrado
+        alt recurso = Candidato
+            Handler->>+Repo: ObterPorEmailAsync(email)
+            Repo->>+Mongo: await Find(email.value)
+            Mongo-->>-Repo: candidato com mesmo e-mail?
+            Repo-->>-Handler: candidato com mesmo e-mail?
+            alt e-mail pertence a outro candidato
+                Handler--x Controller: DomainException("Ja existe outro candidato...")
+            else e-mail liberado
+                Handler->>+Domain: AtualizarContato(nome, email, telefone)
+                Domain-->>-Handler: candidato atualizado
+            end
+        else recurso = Vaga
+            Handler->>+Domain: Atualizar(titulo, descricao, requisitos, salario)
+            alt vaga fechada
+                Domain--x Handler: DomainException("Nao e possivel editar uma vaga fechada.")
+            else atualizacao permitida
+                Domain-->>-Handler: vaga atualizada
+            end
+        end
+        Handler->>+Repo: AtualizarAsync(agregado)
+        Repo->>+Mongo: await ReplaceOneAsync(agregado)
+        Mongo-->>-Repo: documento atualizado
+        Repo-->>-Handler: ok
+        Handler-->>-Controller: DTO atualizado
+        Controller-->>-Cliente: 200 OK
+    end
+```
+
+**Passo a passo**
+
+1. O handler sempre busca o agregado antes de mutar estado.
+2. Atualização de candidato executa uma checagem adicional de e-mail para preservar unicidade.
+3. Atualização de vaga delega ao domínio a regra que bloqueia edição quando `Status = Fechada`.
+4. A persistência usa `ReplaceOneAsync`, substituindo o documento do agregado.
+5. Conflitos de regra de negócio são tratados de forma uniforme pelo middleware.
+
+### 7. Remoção de candidato e vaga
+
+Executado em `DELETE /api/v1/candidatos/{id}` e `DELETE /api/v1/vagas/{id}`. O fluxo remove o agregado após confirmar sua existência.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Cliente
+    participant Controller as Controller
+    participant Handler as Delete Handler
+    participant Repo as Repository Interface
+    participant Mongo as MongoDB
+
+    Cliente->>+Controller: DELETE /api/v1/{recurso}/{id}
+    Controller->>+Handler: HandleAsync(DeleteCommand)
+    Handler->>+Repo: ObterPorIdAsync(id)
+    Repo->>+Mongo: await Find(id)
+    Mongo-->>-Repo: agregado?
+    Repo-->>-Handler: agregado?
+    alt nao encontrado
+        Handler--x Controller: DomainException("nao encontrado")
+    else encontrado
+        critical Remocao do documento
+            Handler->>+Repo: RemoverAsync(id)
+            Repo->>+Mongo: await DeleteOneAsync(id)
+            Mongo-->>-Repo: delete acknowledged
+            Repo-->>-Handler: ok
+        end
+        Handler-->>-Controller: void
+        Controller-->>-Cliente: 204 No Content
+    end
+```
+
+**Passo a passo**
+
+1. A remoção é precedida por leitura para diferenciar `404 Not Found` de remoção bem-sucedida.
+2. O domínio não possui método de exclusão; a remoção é uma operação de aplicação/persistência.
+3. Não há cascade ou verificação de candidaturas relacionadas antes de remover candidato ou vaga.
+4. Em sucesso, o controller retorna `204 No Content`.
+
+### 8. Adição de currículo ao candidato
+
+Executado em `POST /api/v1/candidatos/{id}/curriculo`. Esse é um fluxo de atualização parcial do agregado `Candidato`, com validação de formato de arquivo no value object `Curriculo`.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Cliente
+    participant Controller as CandidatosController
+    participant Handler as AddCurriculoHandler
+    participant Repo as ICandidatoRepository
+    participant Mongo as MongoDB.candidatos
+    participant Domain as Candidato + Curriculo
+
+    Cliente->>+Controller: POST /api/v1/candidatos/{id}/curriculo
+    Controller->>+Handler: HandleAsync(AddCurriculoCommand)
+    Handler->>+Repo: ObterPorIdAsync(candidatoId)
+    Repo->>+Mongo: await Find(candidato.Id)
+    Mongo-->>-Repo: Candidato?
+    Repo-->>-Handler: Candidato?
+    alt candidato inexistente
+        Handler--x Controller: DomainException("Candidato nao encontrado.")
+    else candidato encontrado
+        Handler->>+Domain: AdicionarCurriculo(nomeArquivo, contentType, urlOuBase64)
+        Domain->>Domain: Curriculo.Create()
+        alt arquivo invalido
+            Domain--x Handler: DomainException
+            Note right of Domain: Extensoes permitidas: .pdf, .doc, .docx.
+        else curriculo valido
+            Domain-->>-Handler: candidato com curriculo + evento
+            Handler->>+Repo: AtualizarAsync(candidato)
+            Repo->>+Mongo: await ReplaceOneAsync(candidato)
+            Mongo-->>-Repo: documento atualizado
+            Repo-->>-Handler: ok
+            Handler-->>-Controller: CandidatoDto
+            Controller-->>-Cliente: 200 OK
+        end
+    end
+```
+
+**Passo a passo**
+
+1. O handler busca o candidato pelo ID recebido na rota.
+2. `Candidato.AdicionarCurriculo()` delega validações para `Curriculo.Create()`.
+3. O domínio exige nome de arquivo, conteúdo e extensão permitida.
+4. O candidato inteiro é persistido novamente com o currículo anexado.
+5. O retorno é o `CandidatoDto`, já refletindo `PossuiCurriculo = true`.
+
+### 9. Criação de candidatura
+
+Executado em `POST /api/v1/candidaturas`. É o fluxo mais crítico do domínio, pois cruza três agregados: candidato, vaga e candidatura.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Cliente
+    participant Controller as CandidaturasController
+    participant Handler as CandidatarSeHandler
+    participant CandRepo as ICandidatoRepository
+    participant VagaRepo as IVagaRepository
+    participant CandidRepo as ICandidaturaRepository
+    participant Mongo as MongoDB
+    participant Domain as Candidatura
+    participant Metrics as AtsMetrics
+
+    Cliente->>+Controller: POST /api/v1/candidaturas
+    Controller->>+Handler: HandleAsync(CandidatarSeCommand)
+    Handler->>+CandRepo: ObterPorIdAsync(candidatoId)
+    CandRepo->>+Mongo: await Find(candidato)
+    Mongo-->>-CandRepo: Candidato?
+    CandRepo-->>-Handler: Candidato?
+    alt candidato inexistente
+        Handler--x Controller: DomainException("Candidato nao encontrado.")
+    else candidato encontrado
+        Handler->>+VagaRepo: ObterPorIdAsync(vagaId)
+        VagaRepo->>+Mongo: await Find(vaga)
+        Mongo-->>-VagaRepo: Vaga?
+        VagaRepo-->>-Handler: Vaga?
+        alt vaga inexistente
+            Handler--x Controller: DomainException("Vaga nao encontrada.")
+        else vaga encontrada
+            alt vaga fechada
+                Handler--x Controller: DomainException("Nao e possivel se candidatar a uma vaga fechada.")
+            else vaga aberta
+                Handler->>+CandidRepo: ExisteAsync(candidatoId, vagaId)
+                CandidRepo->>+Mongo: await CountDocuments(candidatoId + vagaId)
+                Mongo-->>-CandidRepo: count
+                CandidRepo-->>-Handler: jaCandidatou?
+                alt candidatura duplicada
+                    Handler--x Controller: DomainException("Candidato ja se candidatou...")
+                else nova candidatura
+                    Handler->>+Domain: Candidatura.Criar(candidatoId, vagaId)
+                    Domain-->>-Handler: Candidatura EmAnalise + evento
+                    critical Persistencia com indice unico composto
+                        Handler->>+CandidRepo: AdicionarAsync(candidatura)
+                        CandidRepo->>+Mongo: await InsertOneAsync(candidatura)
+                        Mongo-->>-CandidRepo: documento gravado
+                        CandidRepo-->>-Handler: ok
+                    end
+                    Handler->>Metrics: CandidaturasCriadas.Add(1)
+                    Handler-->>-Controller: CandidaturaDto
+                    Controller-->>-Cliente: 201 Created
+                end
+            end
+        end
+    end
+```
+
+**Passo a passo**
+
+1. O handler garante que candidato e vaga existem antes de criar a candidatura.
+2. A regra de vaga fechada é avaliada antes da checagem de duplicidade.
+3. O repositório verifica se já existe uma candidatura para o par `candidatoId + vagaId`.
+4. O domínio cria a candidatura em status `EmAnalise` e registra o evento `CandidaturaRealizadaEvent`.
+5. O repositório de infraestrutura cria índice único composto para reforçar a unicidade no MongoDB.
+
+### 10. Aprovação, reprovação e cancelamento de candidatura
+
+Executado em `PATCH /api/v1/candidaturas/{id}/aprovar`, `PATCH /api/v1/candidaturas/{id}/reprovar` e `PATCH /api/v1/candidaturas/{id}/cancelar`. O fluxo representa as transições de estado controladas pela entidade `Candidatura`.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Cliente
+    participant Controller as CandidaturasController
+    participant Handler as Transition Handler
+    participant CandidRepo as ICandidaturaRepository
+    participant CandRepo as ICandidatoRepository
+    participant VagaRepo as IVagaRepository
+    participant Mongo as MongoDB
+    participant Domain as Candidatura
+
+    Cliente->>+Controller: PATCH /api/v1/candidaturas/{id}/{acao}
+    Controller->>+Handler: HandleAsync(Command)
+    Handler->>+CandidRepo: ObterPorIdAsync(candidaturaId)
+    CandidRepo->>+Mongo: await Find(candidatura)
+    Mongo-->>-CandidRepo: Candidatura?
+    CandidRepo-->>-Handler: Candidatura?
+    alt candidatura inexistente
+        Handler--x Controller: DomainException("Candidatura nao encontrada.")
+    else candidatura encontrada
+        alt acao = aprovar
+            Handler->>+Domain: Aprovar(observacoes)
+        else acao = reprovar
+            Handler->>+Domain: Reprovar(observacoes)
+        else acao = cancelar
+            Handler->>+Domain: Cancelar()
+        end
+        alt transicao invalida
+            Domain--x Handler: DomainException
+            Note over Domain: Aprovar/Reprovar exigem EmAnalise; Cancelar bloqueia Cancelado.
+        else transicao valida
+            Domain-->>-Handler: status atualizado
+            Handler->>+CandidRepo: AtualizarAsync(candidatura)
+            CandidRepo->>+Mongo: await ReplaceOneAsync(candidatura)
+            Mongo-->>-CandidRepo: documento atualizado
+            CandidRepo-->>-Handler: ok
+            Handler->>+CandRepo: ObterPorIdAsync(candidatoId)
+            CandRepo->>+Mongo: await Find(candidato)
+            Mongo-->>-CandRepo: Candidato?
+            CandRepo-->>-Handler: Candidato?
+            Handler->>+VagaRepo: ObterPorIdAsync(vagaId)
+            VagaRepo->>+Mongo: await Find(vaga)
+            Mongo-->>-VagaRepo: Vaga?
+            VagaRepo-->>-Handler: Vaga?
+            alt vinculo removido
+                Handler--x Controller: DomainException("vinculado ... nao encontrado")
+            else vinculos validos
+                Handler-->>-Controller: CandidaturaDto enriquecido
+                Controller-->>-Cliente: 200 OK
+            end
+        end
+    end
+```
+
+**Passo a passo**
+
+1. O handler carrega a candidatura e delega a transição à entidade.
+2. `Aprovar` e `Reprovar` só aceitam candidaturas em `EmAnalise`.
+3. `Cancelar` impede cancelar novamente uma candidatura já cancelada.
+4. Após persistir a mudança, o handler busca candidato e vaga para retornar nomes no DTO.
+5. Caso os vínculos tenham sido removidos, a resposta de erro é produzida após a alteração já ter sido persistida.
+
+### 11. Consulta detalhada e listagem de candidatos por vaga
+
+Executado em `GET /api/v1/candidaturas/{id}` e `GET /api/v1/candidaturas/vagas/{vagaId}/candidatos`. Esses fluxos montam DTOs de leitura combinando candidatura, candidato e vaga.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Cliente
+    participant Controller as CandidaturasController
+    participant Handler as Query Handler
+    participant CandidRepo as ICandidaturaRepository
+    participant CandRepo as ICandidatoRepository
+    participant VagaRepo as IVagaRepository
+    participant Mongo as MongoDB
+    participant DTO as CandidaturaDetalhadaDto
+
+    alt consulta detalhada por candidatura
+        Cliente->>+Controller: GET /api/v1/candidaturas/{id}
+        Controller->>+Handler: HandleAsync(GetCandidaturaByIdQuery)
+        Handler->>+CandidRepo: ObterPorIdAsync(id)
+        CandidRepo->>+Mongo: await Find(candidatura)
+        Mongo-->>-CandidRepo: Candidatura?
+        CandidRepo-->>-Handler: Candidatura?
+        alt candidatura inexistente
+            Handler--x Controller: DomainException("Candidatura nao encontrada.")
+        else candidatura encontrada
+            Handler->>+CandRepo: ObterPorIdAsync(candidatoId)
+            CandRepo->>+Mongo: await Find(candidato)
+            Mongo-->>-CandRepo: Candidato?
+            CandRepo-->>-Handler: Candidato?
+            Handler->>+VagaRepo: ObterPorIdAsync(vagaId)
+            VagaRepo->>+Mongo: await Find(vaga)
+            Mongo-->>-VagaRepo: Vaga?
+            VagaRepo-->>-Handler: Vaga?
+            Handler->>DTO: FromDomain(candidatura, candidato, vaga.Titulo)
+            DTO-->>Handler: DTO detalhado
+            Handler-->>-Controller: CandidaturaDetalhadaDto
+            Controller-->>Cliente: 200 OK
+        end
+    else listagem por vaga
+        Cliente->>+Controller: GET /api/v1/candidaturas/vagas/{vagaId}/candidatos
+        Controller->>+Handler: HandleAsync(ListCandidatosPorVagaQuery)
+        Handler->>+VagaRepo: ObterPorIdAsync(vagaId)
+        VagaRepo->>+Mongo: await Find(vaga)
+        Mongo-->>-VagaRepo: Vaga?
+        VagaRepo-->>-Handler: Vaga?
+        alt vaga inexistente
+            Handler--x Controller: DomainException("Vaga nao encontrada.")
+        else vaga encontrada
+            Handler->>+CandidRepo: ListarPorVagaAsync(vagaId)
+            CandidRepo->>+Mongo: await Find(candidaturas por vaga)
+            Mongo-->>-CandidRepo: candidaturas
+            CandidRepo-->>-Handler: candidaturas
+            loop para cada candidatura
+                Handler->>+CandRepo: ObterPorIdAsync(candidatoId)
+                CandRepo->>+Mongo: await Find(candidato)
+                Mongo-->>-CandRepo: Candidato?
+                CandRepo-->>-Handler: Candidato?
+                opt candidato encontrado
+                    Handler->>DTO: FromDomain(candidatura, candidato, vaga.Titulo)
+                end
+            end
+            Handler-->>-Controller: IEnumerable<CandidaturaDetalhadaDto>
+            Controller-->>Cliente: 200 OK
+        end
+    end
+```
+
+**Passo a passo**
+
+1. A consulta detalhada exige que candidatura, candidato e vaga existam.
+2. A listagem por vaga valida a existência da vaga antes de buscar candidaturas.
+3. Para cada candidatura, o handler busca o candidato individualmente.
+4. Candidatos ausentes são ignorados na listagem por vaga, enquanto a consulta por ID falha se o vínculo estiver ausente.
+5. A montagem do DTO fica na Application, mantendo controllers sem lógica de composição.
+
+### 12. Tratamento centralizado de erros
+
+Este fluxo é acionado sempre que uma exceção atravessa controllers e handlers sem tratamento local. A resposta final segue o formato `application/problem+json`.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Cliente
+    participant Controller as Controller / Handler
+    participant Ex as ExceptionHandlingMiddleware
+    participant Logger as ILogger
+    participant Problem as ProblemDetails
+
+    Cliente->>+Controller: requisicao HTTP
+    alt regra de dominio violada
+        Controller--x Ex: DomainException
+        Ex->>Ex: ResolveDomainStatusCode(message)
+        alt mensagem contem "nao encontrado"
+            Ex->>Problem: status 404
+        else mensagem contem "ja", "fechada" ou "Somente candidaturas"
+            Ex->>Problem: status 409
+        else demais DomainException
+            Ex->>Problem: status 400
+        end
+        Ex->>Logger: LogWarning(EventId 9001)
+    else requisicao malformada ou argumento invalido
+        Controller--x Ex: BadHttpRequestException / ArgumentException
+        Ex->>Problem: status 400, title "Requisicao invalida."
+        Ex->>Logger: LogError(EventId 9002)
+    else chave nao encontrada
+        Controller--x Ex: KeyNotFoundException
+        Ex->>Problem: status 404, title "Recurso nao encontrado."
+        Ex->>Logger: LogError(EventId 9002)
+    else erro inesperado
+        Controller--x Ex: Exception
+        Ex->>Problem: status 500, detail generico
+        Note right of Ex: Detalhes internos nao vazam para o cliente em 5xx.
+        Ex->>Logger: LogError(EventId 9002)
+    end
+    Ex->>Problem: adicionar traceId e instance
+    Ex-->>-Cliente: application/problem+json
+```
+
+**Passo a passo**
+
+1. O middleware captura exceções somente enquanto a resposta ainda não começou.
+2. `DomainException` usa a mensagem como sinal semântico para decidir entre `400`, `404` e `409`.
+3. Erros inesperados viram `500` com detalhe sanitizado.
+4. Todas as respostas incluem `traceId`, facilitando correlação com logs.
+5. Erros de domínio são registrados como warning; os demais como error.
+
+### 13. Observabilidade, métricas e health checks
+
+Este fluxo cobre os endpoints operacionais e integrações externas de observabilidade: Prometheus para scraping, MongoDB para readiness e OTLP/Jaeger quando configurado.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Prometheus
+    actor Orquestrador as Kubernetes / Docker
+    participant API as ATS.API
+    participant OTel as OpenTelemetry
+    participant Health as HealthCheckService
+    participant MongoHealth as MongoDbHealthCheck
+    participant Mongo as MongoDB
+    participant OTLP as OTLP / Jaeger
+
+    par scraping de metricas
+        Prometheus->>+API: GET /metrics
+        API->>+OTel: Prometheus exporter
+        OTel-->>-API: metricas ASP.NET, runtime e ats.*
+        API-->>-Prometheus: texto Prometheus
+    and liveness probe
+        Orquestrador->>+API: GET /health/live
+        Note over API: Predicate = false; nao verifica dependencia externa.
+        API-->>-Orquestrador: 200 se processo respondeu
+    and readiness probe
+        Orquestrador->>+API: GET /health/ready
+        API->>+Health: executar checks com tag ready
+        Health->>+MongoHealth: CheckHealthAsync()
+        MongoHealth->>+Mongo: await adminCommand({ ping: 1 })
+        alt MongoDB disponivel
+            Mongo-->>-MongoHealth: ok
+            MongoHealth-->>-Health: Healthy
+            Health-->>-API: Healthy
+            API-->>Orquestrador: 200 OK
+        else falha de conectividade
+            Mongo--x MongoHealth: exception
+            MongoHealth-->>Health: Unhealthy
+            Health-->>API: Unhealthy
+            API-->>-Orquestrador: 503 Service Unavailable
+        end
+    and exportacao OTLP opcional
+        API->>+OTel: spans e metricas coletados
+        opt Observability__OtlpEndpoint configurado
+            OTel->>+OTLP: exportar traces/metricas
+            OTLP-->>-OTel: accepted
+        end
+    end
+```
+
+**Passo a passo**
+
+1. `/metrics` é mapeado por `UseObservability()` quando `EnablePrometheusEndpoint` está habilitado.
+2. `/health/live` valida apenas que o processo responde.
+3. `/health/ready` executa `MongoDbHealthCheck`, que envia `ping` ao MongoDB.
+4. OpenTelemetry coleta instrumentação ASP.NET Core, `HttpClient`, runtime e métricas de negócio `ats.*`.
+5. Exportação OTLP ocorre somente quando `Observability__OtlpEndpoint` está configurado.
+
+### Observações de arquitetura identificadas
+
+- **Autenticação/autorização:** não há autenticação JWT, roles, policies ou `[Authorize]` implementados. O uso de `UseAuthorization()` hoje não protege as rotas.
+- **Validação:** não há camada de validators externos como FluentValidation. As validações vivem em handlers e, principalmente, nos métodos/factories do domínio.
+- **Eventos de domínio:** entidades registram eventos, mas não existe dispatcher/publicação para mensageria; os eventos permanecem no agregado.
+- **Transações:** não há sessões/transações MongoDB. Cada operação de repositório é uma chamada independente.
+- **Paginação de vagas filtradas:** `ListVagasHandler` pagina primeiro e filtra por status em memória depois; o `Total` retornado continua sendo o total geral da coleção.
+- **Remoções sem integridade referencial:** exclusão de candidato ou vaga não verifica candidaturas relacionadas, podendo deixar candidaturas com vínculos ausentes.
+- **Concorrência em candidatura:** o handler verifica duplicidade antes de inserir e o MongoDB possui índice único composto. Em uma corrida concorrente, uma violação de índice pode emergir como exceção de infraestrutura não mapeada explicitamente para `409 Conflict`.
+- **Composition root:** `ATS.Infrastructure.DependencyInjection` registra também handlers da Application. Funciona, mas separar registros de Application e Infrastructure deixaria as dependências mais explícitas.
 
 ---
 

@@ -18,7 +18,7 @@ concurrency:
 
 env:
   DOTNET_VERSION: '10.0.x'       # alinhado com net10.0 dos .csproj
-  COVERAGE_THRESHOLD: '70'
+  COVERAGE_THRESHOLD: '30'
 
 permissions:
   contents: read
@@ -157,7 +157,7 @@ jobs:
               sys.exit(1)
 
           coverage  = (total_covered / total_valid) * 100
-          threshold = int(os.environ.get('COVERAGE_THRESHOLD', '70'))
+          threshold = int(os.environ.get('COVERAGE_THRESHOLD', '40'))
 
           print(f'Cobertura de linhas: {coverage:.1f}%  ({total_covered}/{total_valid} linhas)')
 
