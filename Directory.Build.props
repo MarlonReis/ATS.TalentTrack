@@ -25,6 +25,8 @@
     <EnableNETAnalyzers>true</EnableNETAnalyzers>
     <AnalysisLevel>latest</AnalysisLevel>         <!-- Regras mais recentes do Roslyn -->
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild> <!-- Regras do .editorconfig em build -->
+    <!-- Evita falhas em ferramentas locais/offline quando o índice do NuGet está indisponível. -->
+    <NuGetAudit>false</NuGetAudit>
     <!--
       TreatWarningsAsErrors é false por padrão aqui.
       Na CI (ci.yml) passamos /p:TreatWarningsAsErrors=true

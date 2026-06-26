@@ -5,21 +5,25 @@ using ATS.Domain.Candidatos.Repositories;
 using ATS.Domain.Candidaturas.Repositories;
 using ATS.Domain.Shared;
 using ATS.Domain.Vagas.Repositories;
+using Microsoft.Extensions.Logging;
 
-public sealed class ReprovarCandidaturaHandler
+public sealed partial class ReprovarCandidaturaHandler
 {
     private readonly ICandidaturaRepository _candidaturaRepository;
     private readonly ICandidatoRepository _candidatoRepository;
     private readonly IVagaRepository _vagaRepository;
+    private readonly ILogger<ReprovarCandidaturaHandler> _logger;
 
     public ReprovarCandidaturaHandler(
         ICandidaturaRepository candidaturaRepository,
         ICandidatoRepository candidatoRepository,
-        IVagaRepository vagaRepository)
+        IVagaRepository vagaRepository,
+        ILogger<ReprovarCandidaturaHandler> logger)
     {
         _candidaturaRepository = candidaturaRepository;
         _candidatoRepository = candidatoRepository;
         _vagaRepository = vagaRepository;
+        _logger = logger;
     }
 
     public async Task<CandidaturaDto> HandleAsync(
@@ -33,6 +37,8 @@ public sealed class ReprovarCandidaturaHandler
 
         await _candidaturaRepository.AtualizarAsync(candidatura, ct);
 
+        LogCandidaturaReprovada(candidatura.Id, candidatura.CandidatoId, candidatura.VagaId);
+
         var candidato = await _candidatoRepository.ObterPorIdAsync(candidatura.CandidatoId, ct)
             ?? throw new DomainException("Candidato vinculado à candidatura não encontrado.");
 
@@ -41,4 +47,8 @@ public sealed class ReprovarCandidaturaHandler
 
         return CandidaturaDto.FromDomain(candidatura, candidato.Nome, vaga.Titulo);
     }
+
+    [LoggerMessage(EventId = 3003, Level = LogLevel.Information,
+        Message = "Candidatura {CandidaturaId} reprovada (candidato {CandidatoId}, vaga {VagaId})")]
+    private partial void LogCandidaturaReprovada(Guid candidaturaId, Guid candidatoId, Guid vagaId);
 }

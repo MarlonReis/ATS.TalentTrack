@@ -3,6 +3,7 @@ using ATS.Application.Vagas.Commands.UpdateVaga;
 using ATS.Domain.Shared;
 using ATS.Domain.Vagas.Entities;
 using ATS.Domain.Vagas.Repositories;
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 
 namespace ATS.Application.Tests.Vagas;
@@ -15,7 +16,7 @@ public class DeleteVagaHandlerTests
     public DeleteVagaHandlerTests()
     {
         _repoMock = new Mock<IVagaRepository>(MockBehavior.Strict);
-        _handler = new DeleteVagaHandler(_repoMock.Object);
+        _handler = new DeleteVagaHandler(_repoMock.Object, NullLogger<DeleteVagaHandler>.Instance);
     }
 
     private static Vaga CriarVaga() =>

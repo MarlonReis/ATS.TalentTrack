@@ -7,6 +7,7 @@ using ATS.Domain.Candidaturas.Repositories;
 using ATS.Domain.Shared;
 using ATS.Domain.Vagas.Entities;
 using ATS.Domain.Vagas.Repositories;
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Xunit;
 
@@ -31,7 +32,8 @@ public class ReprovarCandidaturaHandlerTests
         _handler = new ReprovarCandidaturaHandler(
             _candidaturaRepoMock.Object,
             _candidatoRepoMock.Object,
-            _vagaRepoMock.Object);
+            _vagaRepoMock.Object,
+            NullLogger<ReprovarCandidaturaHandler>.Instance);
     }
 
     private static Candidatura CriarCandidatura() => Candidatura.Criar(_guidCandidato, _guidVaga);

@@ -3,6 +3,7 @@ using ATS.Application.Vagas.Commands.UpdateVaga;
 using ATS.Domain.Shared;
 using ATS.Domain.Vagas.Entities;
 using ATS.Domain.Vagas.Repositories;
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Xunit;
 
@@ -18,7 +19,7 @@ public class UpdateVagaHandlerTests
     public UpdateVagaHandlerTests()
     {
         _repoMock = new Mock<IVagaRepository>(MockBehavior.Strict);
-        _handler = new UpdateVagaHandler(_repoMock.Object);
+        _handler = new UpdateVagaHandler(_repoMock.Object, NullLogger<UpdateVagaHandler>.Instance);
     }
 
     private static Vaga CriarVaga(string titulo = "Dev Back-end") =>

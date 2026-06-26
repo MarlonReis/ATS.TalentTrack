@@ -3,14 +3,19 @@ namespace ATS.Application.Vagas.Commands.FecharVaga;
 using ATS.Application.Vagas.DTOs;
 using ATS.Domain.Shared;
 using ATS.Domain.Vagas.Repositories;
+using Microsoft.Extensions.Logging;
 
-public sealed class FecharVagaHandler
+public sealed partial class FecharVagaHandler
 {
     private readonly IVagaRepository _repository;
+    private readonly ILogger<FecharVagaHandler> _logger;
 
-    public FecharVagaHandler(IVagaRepository repository)
+    public FecharVagaHandler(
+        IVagaRepository repository,
+        ILogger<FecharVagaHandler> logger)
     {
         _repository = repository;
+        _logger = logger;
     }
 
     public async Task<VagaDto> HandleAsync(
@@ -20,11 +25,16 @@ public sealed class FecharVagaHandler
         var vaga = await _repository.ObterPorIdAsync(command.Id, ct)
             ?? throw new DomainException("Vaga não encontrada.");
 
-        // Domínio lança DomainException se já estiver fechada
         vaga.Fechar();
 
         await _repository.AtualizarAsync(vaga, ct);
 
+        LogVagaFechada(vaga.Id);
+
         return VagaDto.FromDomain(vaga);
     }
+
+    [LoggerMessage(EventId = 2004, Level = LogLevel.Information,
+        Message = "Vaga {VagaId} fechada com sucesso")]
+    private partial void LogVagaFechada(Guid vagaId);
 }

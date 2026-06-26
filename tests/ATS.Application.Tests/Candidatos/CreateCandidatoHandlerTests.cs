@@ -2,6 +2,7 @@ using ATS.Application.Candidatos.Commands.CreateCandidato;
 using ATS.Domain.Candidatos.Entities;
 using ATS.Domain.Candidatos.Repositories;
 using ATS.Domain.Shared;
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Xunit;
 
@@ -15,7 +16,7 @@ public class CreateCandidatoHandlerTests
     public CreateCandidatoHandlerTests()
     {
         _repositoryMock = new Mock<ICandidatoRepository>(MockBehavior.Strict);
-        _handler = new CreateCandidatoHandler(_repositoryMock.Object);
+        _handler = new CreateCandidatoHandler(_repositoryMock.Object, NullLogger<CreateCandidatoHandler>.Instance);
     }
 
     [Theory]

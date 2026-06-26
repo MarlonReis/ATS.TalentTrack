@@ -2,6 +2,7 @@ using ATS.Application.Candidatos.Commands.AddCurriculo;
 using ATS.Domain.Candidatos.Entities;
 using ATS.Domain.Candidatos.Repositories;
 using ATS.Domain.Shared;
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 
 namespace ATS.Application.Tests.Candidatos;
@@ -16,7 +17,7 @@ public class AddCurriculoHandlerTests
     public AddCurriculoHandlerTests()
     {
         _repoMock = new Mock<ICandidatoRepository>(MockBehavior.Strict);
-        _handler = new AddCurriculoHandler(_repoMock.Object);
+        _handler = new AddCurriculoHandler(_repoMock.Object, NullLogger<AddCurriculoHandler>.Instance);
     }
 
     private static Candidato CriarCandidato() =>

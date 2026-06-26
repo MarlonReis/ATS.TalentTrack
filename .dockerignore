@@ -1,0 +1,17 @@
+.git
+.github
+.idea
+.env
+.env.*
+!.env.example
+**/bin/
+**/obj/
+coverage-report/
+coverage-results
+TestResults/
+*.user
+*.suo
+*.DotSettings.user
+Dockerfile*
+docker-compose*.yml
+local-check.sh
