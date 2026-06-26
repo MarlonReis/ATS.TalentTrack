@@ -106,7 +106,7 @@ O projeto segue a arquitetura em camadas do **Domain-Driven Design (DDD)**, com 
 └───────────────────────────────────────────────────────────────┘
 ```
 
-> **Nota arquitetural:** `ATS.Application` não referencia `ATS.Infrastructure`. A API referencia os dois projetos e usa `ATS.Infrastructure.DependencyInjection` como composition root prático para registrar repositórios, health checks e handlers. Em uma Clean Architecture mais estrita, os registros de handlers poderiam viver em um `ATS.Application.DependencyInjection` separado.
+> **Nota arquitetural:** `ATS.Application` não referencia `ATS.Infrastructure`. A API referencia os dois projetos e usa `ATS.Infrastructure.DependencyInjection` como composition root prático para registrar repositórios, health checks e handlers. Em uma architecture mais estrita, os registros de handlers poderiam viver em um `ATS.Application.DependencyInjection` separado.
 
 ### Responsabilidades por camada
 
@@ -259,8 +259,8 @@ ATS.Solution/
 ### 1. Clonar o repositório
 
 ```bash
-git clone https://github.com/marlongreis91/ATS.Solution.git
-cd ATS.Solution
+git clone https://github.com/MarlonReis/ATS.TalentTrack.git
+cd ATS.TalentTrack
 ```
 
 ### 2. Configurar o banco de dados
@@ -995,7 +995,7 @@ sequenceDiagram
         end
         alt transicao invalida
             Domain--x Handler: DomainException
-            Note over Domain: Aprovar/Reprovar exigem EmAnalise; Cancelar bloqueia Cancelado.
+            Note over Domain: Aprovar/Reprovar exigem EmAnalise. Cancelar bloqueia Cancelado.
         else transicao valida
             Domain-->>-Handler: status atualizado
             Handler->>+CandidRepo: AtualizarAsync(candidatura)
@@ -1118,8 +1118,8 @@ sequenceDiagram
     participant Problem as ProblemDetails
 
     Cliente->>+Controller: requisicao HTTP
+    Controller--x+Ex: DomainException
     alt regra de dominio violada
-        Controller--x Ex: DomainException
         Ex->>Ex: ResolveDomainStatusCode(message)
         alt mensagem contem "nao encontrado"
             Ex->>Problem: status 404
@@ -1130,15 +1130,12 @@ sequenceDiagram
         end
         Ex->>Logger: LogWarning(EventId 9001)
     else requisicao malformada ou argumento invalido
-        Controller--x Ex: BadHttpRequestException / ArgumentException
         Ex->>Problem: status 400, title "Requisicao invalida."
         Ex->>Logger: LogError(EventId 9002)
     else chave nao encontrada
-        Controller--x Ex: KeyNotFoundException
         Ex->>Problem: status 404, title "Recurso nao encontrado."
         Ex->>Logger: LogError(EventId 9002)
     else erro inesperado
-        Controller--x Ex: Exception
         Ex->>Problem: status 500, detail generico
         Note right of Ex: Detalhes internos nao vazam para o cliente em 5xx.
         Ex->>Logger: LogError(EventId 9002)
@@ -1178,7 +1175,7 @@ sequenceDiagram
         API-->>-Prometheus: texto Prometheus
     and liveness probe
         Orquestrador->>+API: GET /health/live
-        Note over API: Predicate = false; nao verifica dependencia externa.
+        Note over API: Predicate = false - nao verifica dependencia externa.
         API-->>-Orquestrador: 200 se processo respondeu
     and readiness probe
         Orquestrador->>+API: GET /health/ready
