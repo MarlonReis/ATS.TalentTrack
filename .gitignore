@@ -35,6 +35,7 @@ local-check.sh
 *.pfx
 *.p12
 secrets.json
+coverage-results/
 
 # ─── Pacotes NuGet restaurados localmente ────────────────────────────────────
 packages/

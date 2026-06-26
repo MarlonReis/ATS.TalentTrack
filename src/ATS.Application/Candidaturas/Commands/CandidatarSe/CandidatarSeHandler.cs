@@ -1,6 +1,7 @@
 namespace ATS.Application.Candidaturas.Commands.CandidatarSe;
 
 using ATS.Application.Candidaturas.DTOs;
+using ATS.Application.Observability;
 using ATS.Domain.Candidatos.Repositories;
 using ATS.Domain.Candidaturas.Entities;
 using ATS.Domain.Candidaturas.Repositories;
@@ -53,6 +54,8 @@ public class CandidatarSeHandler
         // Cria candidatura (lógica e validação no agregado)
         var candidatura = Candidatura.Criar(command.CandidatoId, command.VagaId);
         await _candidaturaRepository.AdicionarAsync(candidatura, ct);
+
+        AtsMetrics.CandidaturasCriadas.Add(1);
 
         return CandidaturaDto.FromDomain(candidatura, candidato.Nome, vaga.Titulo);
     }

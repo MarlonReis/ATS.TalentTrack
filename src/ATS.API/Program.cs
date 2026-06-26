@@ -1,10 +1,14 @@
 using ATS.API.Middlewares;
+using ATS.API.Observability;
 using ATS.Infrastructure;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.WebHost.ConfigureKestrel(options => options.AddServerHeader = false);
+builder.AddObservability();
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
@@ -44,13 +48,12 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
     options.KnownProxies.Clear();
 });
 
-builder.Services.AddHealthChecks();
-
 builder.Services.AddInfrastructure(builder.Configuration);
 
 var app = builder.Build();
 
 app.UseForwardedHeaders();
+app.UseObservability();
 
 app.Use(async (context, next) =>
 {
@@ -72,7 +75,30 @@ app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseCors("DefaultCors");
 app.UseAuthorization();
 app.MapControllers();
-app.MapHealthChecks("/health");
+
+// /health/live  — apenas verifica que o processo está vivo
+// /health/ready — verifica dependências externas (MongoDB)
+app.MapHealthChecks("/health/live", new HealthCheckOptions
+{
+    Predicate = _ => false,
+    ResultStatusCodes =
+    {
+        [HealthStatus.Healthy]   = StatusCodes.Status200OK,
+        [HealthStatus.Degraded]  = StatusCodes.Status200OK,
+        [HealthStatus.Unhealthy] = StatusCodes.Status503ServiceUnavailable
+    }
+});
+
+app.MapHealthChecks("/health/ready", new HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("ready"),
+    ResultStatusCodes =
+    {
+        [HealthStatus.Healthy]   = StatusCodes.Status200OK,
+        [HealthStatus.Degraded]  = StatusCodes.Status200OK,
+        [HealthStatus.Unhealthy] = StatusCodes.Status503ServiceUnavailable
+    }
+});
 
 app.Run();
 

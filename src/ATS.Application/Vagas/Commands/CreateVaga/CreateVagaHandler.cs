@@ -1,5 +1,6 @@
 namespace ATS.Application.Vagas.Commands.CreateVaga;
 
+using ATS.Application.Observability;
 using ATS.Application.Vagas.DTOs;
 using ATS.Domain.Vagas.Entities;
 using ATS.Domain.Vagas.Repositories;
@@ -24,6 +25,8 @@ public sealed class CreateVagaHandler
               command.Salario);
 
         await _repository.AdicionarAsync(vaga, ct);
+
+        AtsMetrics.VagasCriadas.Add(1);
 
         return VagaDto.FromDomain(vaga);
     }

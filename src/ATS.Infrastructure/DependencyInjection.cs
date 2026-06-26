@@ -21,6 +21,7 @@ using ATS.Application.Vagas.Queries.ListVagas;
 using ATS.Domain.Candidatos.Repositories;
 using ATS.Domain.Candidaturas.Repositories;
 using ATS.Domain.Vagas.Repositories;
+using ATS.Infrastructure.Health;
 using ATS.Infrastructure.Persistence.Context;
 using ATS.Infrastructure.Persistence.Repositories;
 using Microsoft.Extensions.Configuration;
@@ -72,6 +73,10 @@ public static class DependencyInjection
         // ── Candidaturas – Queries ────────────────────────────────────────────
         services.AddScoped<GetCandidaturaByIdHandler>();
         services.AddScoped<ListCandidatosPorVagaHandler>();
+
+        // ── Health Checks ─────────────────────────────────────────────────────
+        services.AddHealthChecks()
+            .AddCheck<MongoDbHealthCheck>("mongodb", tags: ["ready"]);
 
         return services;
     }
