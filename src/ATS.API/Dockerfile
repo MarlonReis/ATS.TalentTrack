@@ -20,13 +20,9 @@ FROM base AS final
 WORKDIR /app
 COPY --from=build /app/publish .
 
-# Cria usuário não-root para execução da aplicação
-RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser
-USER appuser
+# Usa o usuário não-root já disponível nas imagens oficiais .NET.
+USER $APP_UID
 
 ENV ASPNETCORE_URLS=http://+:8080
-
-HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-  CMD wget -qO- http://localhost:8080/health/ready || exit 1
 
 ENTRYPOINT ["dotnet", "ATS.API.dll"]
