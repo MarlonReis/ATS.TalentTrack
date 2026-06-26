@@ -5,7 +5,13 @@
 [![CI](https://github.com/marlongreis91/ATS.Solution/actions/workflows/ci.yml/badge.svg)](https://github.com/marlongreis91/ATS.Solution/actions/workflows/ci.yml)
 [![.NET](https://img.shields.io/badge/.NET-10.0-512BD4)](https://dotnet.microsoft.com)
 [![MongoDB](https://img.shields.io/badge/MongoDB-7.0-47A248)](https://www.mongodb.com)
+[![BDD](https://img.shields.io/badge/BDD-Gherkin-brightgreen)](docs/bdd/README.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+---
+
+> **📋 Documentação de regras de negócio em BDD/Gherkin:** [`docs/bdd/`](docs/bdd/README.md)  
+> ~101 cenários cobrindo Candidatos, Vagas, Candidaturas, Paginação e Tratamento de Erros — prontos para automação com Reqnroll/SpecFlow.
 
 ---
 
@@ -30,6 +36,7 @@
 - [Convenções de desenvolvimento](#convenções-de-desenvolvimento)
 - [Tratamento de erros](#tratamento-de-erros)
 - [CI/CD](#cicd)
+- [**Documentação BDD**](#documentação-bdd) — [📋 Abrir docs/bdd/](docs/bdd/README.md)
 - [Roadmap](#roadmap)
 - [Licença](#licença)
 - [Autor](#autor)
@@ -212,6 +219,14 @@ ATS.Solution/
 │   ├── ATS.API.Tests/
 │   └── ATS.E2E.Tests/
 │
+├── docs/
+│   └── bdd/
+│       ├── README.md              # Índice, convenções e instruções de automação
+│       ├── Candidatos.feature     # Regras de negócio de candidatos (Gherkin)
+│       ├── Vagas.feature          # Regras de negócio de vagas (Gherkin)
+│       ├── Candidaturas.feature   # Regras de negócio de candidaturas (Gherkin)
+│       ├── Paginacao.feature      # Regras de paginação (Gherkin)
+│       └── TratamentoDeErros.feature # Comportamento de erros (Gherkin)
 ├── infra/
 │   └── prometheus.yml
 ├── docker-compose.yml
@@ -661,6 +676,48 @@ O pipeline de CI roda no **GitHub Actions** (`.github/workflows/ci.yml`) com qua
 | **Code Quality** | Verifica `dotnet format`, audita pacotes vulneráveis com `dotnet list package --vulnerable` |
 
 Artefatos publicados por run: relatório HTML de cobertura (`coverage-report`), resultados TRX unitários (`test-results`), resultados TRX E2E (`e2e-test-results`).
+
+---
+
+## Documentação BDD
+
+> **Localização:** [`docs/bdd/`](docs/bdd/README.md) — ~101 cenários em Gherkin, pt-BR, prontos para automação com Reqnroll ou SpecFlow.
+
+O diretório [`docs/bdd/`](docs/bdd/) contém a **documentação viva das regras de negócio** no formato **Gherkin / BDD (Behavior-Driven Development)**, escrita em português do Brasil. Os cenários foram extraídos diretamente da implementação — entidades de domínio, handlers, value objects e repositórios — sem comportamentos inventados ou especulativos.
+
+Serve simultaneamente como **especificação executável**, **documentação técnica** e **base de testes automatizados**, legível por desenvolvedores, QA, Product Owners e analistas de negócio.
+
+### Arquivos de funcionalidade
+
+| Arquivo | Contexto de negócio | Cenários |
+|---------|--------------------|---------:|
+| [Candidatos.feature](docs/bdd/Candidatos.feature) | Cadastro, consulta, atualização, exclusão de candidatos e upload de currículo | 28 |
+| [Vagas.feature](docs/bdd/Vagas.feature) | Publicação, consulta, listagem com filtro, atualização e encerramento de vagas | 24 |
+| [Candidaturas.feature](docs/bdd/Candidaturas.feature) | Candidatura, aprovação, reprovação, cancelamento e ciclo de vida do processo seletivo | 31 |
+| [Paginacao.feature](docs/bdd/Paginacao.feature) | Regras de paginação aplicáveis a todas as listagens | 9 |
+| [TratamentoDeErros.feature](docs/bdd/TratamentoDeErros.feature) | Respostas padronizadas de erro (Problem Details — RFC 7807) | 9 |
+
+### Tags para execução seletiva
+
+| Tag | Uso |
+|-----|-----|
+| `@Smoke` | Cenários essenciais — verificação rápida de sanidade |
+| `@Critical` | Regras críticas — devem passar antes de qualquer release |
+| `@Candidatos`, `@Vagas`, `@Candidaturas` | Execução por agregado de domínio |
+| `@CicloDeVida` | Transições de estado dos agregados |
+
+```bash
+# Executar apenas smoke tests (com Reqnroll/SpecFlow)
+dotnet test --filter "Category=Smoke"
+
+# Executar cenários críticos
+dotnet test --filter "Category=Critical"
+
+# Executar um agregado específico
+dotnet test --filter "Category=Candidaturas"
+```
+
+Consulte o [docs/bdd/README.md](docs/bdd/README.md) para convenções de escrita, instruções de automação com Reqnroll e notas sobre comportamentos implícitos identificados no código.
 
 ---
 
