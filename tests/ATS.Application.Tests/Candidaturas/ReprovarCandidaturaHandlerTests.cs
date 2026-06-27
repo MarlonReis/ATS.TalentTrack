@@ -1,8 +1,10 @@
 using ATS.Application.Candidaturas.Commands.ReprovarCandidatura;
+using ATS.Application.Common.Events;
 using ATS.Domain.Candidatos.Entities;
 using ATS.Domain.Candidatos.Repositories;
 using ATS.Domain.Candidaturas.Entities;
 using ATS.Domain.Candidaturas.Enums;
+using ATS.Domain.Candidaturas.Events;
 using ATS.Domain.Candidaturas.Repositories;
 using ATS.Domain.Shared;
 using ATS.Domain.Vagas.Entities;
@@ -18,6 +20,7 @@ public class ReprovarCandidaturaHandlerTests
     private readonly Mock<ICandidaturaRepository> _candidaturaRepoMock;
     private readonly Mock<ICandidatoRepository> _candidatoRepoMock;
     private readonly Mock<IVagaRepository> _vagaRepoMock;
+    private readonly Mock<IDomainEventDispatcher> _dispatcherMock;
     private readonly ReprovarCandidaturaHandler _handler;
 
     private static readonly Guid _guidCandidatura = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
@@ -29,10 +32,15 @@ public class ReprovarCandidaturaHandlerTests
         _candidaturaRepoMock = new Mock<ICandidaturaRepository>(MockBehavior.Strict);
         _candidatoRepoMock = new Mock<ICandidatoRepository>(MockBehavior.Strict);
         _vagaRepoMock = new Mock<IVagaRepository>(MockBehavior.Strict);
+        _dispatcherMock = new Mock<IDomainEventDispatcher>();
+        _dispatcherMock
+            .Setup(d => d.DispatchAndClearAsync(It.IsAny<AggregateRoot>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
         _handler = new ReprovarCandidaturaHandler(
             _candidaturaRepoMock.Object,
             _candidatoRepoMock.Object,
             _vagaRepoMock.Object,
+            _dispatcherMock.Object,
             NullLogger<ReprovarCandidaturaHandler>.Instance);
     }
 
@@ -231,5 +239,56 @@ public class ReprovarCandidaturaHandlerTests
         _candidaturaRepoMock.Verify(r => r.AtualizarAsync(candidatura, ct), Times.Once);
         _candidatoRepoMock.Verify(r => r.ObterPorIdAsync(_guidCandidato, ct), Times.Once);
         _vagaRepoMock.Verify(r => r.ObterPorIdAsync(_guidVaga, ct), Times.Once);
+    }
+
+    [Fact]
+    public async Task ReprovarDeveDispatchEventoAposPersistir()
+    {
+        var candidatura = CriarCandidatura();
+        SetupFluxoCompleto(candidatura);
+
+        await _handler.HandleAsync(new ReprovarCandidaturaCommand(_guidCandidatura));
+
+        _dispatcherMock.Verify(
+            d => d.DispatchAndClearAsync(It.IsAny<AggregateRoot>(), It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task ReprovarDeveDispatchEventoComObservacoes()
+    {
+        var candidatura = CriarCandidatura();
+        Candidatura? candidaturaPassadaAoDispatcher = null;
+
+        SetupFluxoCompleto(candidatura);
+        _dispatcherMock
+            .Setup(d => d.DispatchAndClearAsync(It.IsAny<AggregateRoot>(), It.IsAny<CancellationToken>()))
+            .Callback<AggregateRoot, CancellationToken>((agg, _) =>
+                candidaturaPassadaAoDispatcher = agg as Candidatura)
+            .Returns(Task.CompletedTask);
+
+        await _handler.HandleAsync(new ReprovarCandidaturaCommand(_guidCandidatura, "Perfil inadequado"));
+
+        Assert.NotNull(candidaturaPassadaAoDispatcher);
+        var evento = candidaturaPassadaAoDispatcher!.DomainEvents
+            .OfType<CandidaturaReprovadaEvent>()
+            .SingleOrDefault();
+        Assert.NotNull(evento);
+        Assert.Equal("Perfil inadequado", evento!.Observacoes);
+    }
+
+    [Fact]
+    public async Task ReprovarNaoDeveDispatchQuandoCandidaturaNaoEncontrada()
+    {
+        _candidaturaRepoMock
+            .Setup(r => r.ObterPorIdAsync(_guidCandidatura, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Candidatura?)null);
+
+        await Assert.ThrowsAsync<DomainException>(
+            () => _handler.HandleAsync(new ReprovarCandidaturaCommand(_guidCandidatura)));
+
+        _dispatcherMock.Verify(
+            d => d.DispatchAndClearAsync(It.IsAny<AggregateRoot>(), It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 }

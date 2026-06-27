@@ -1,5 +1,6 @@
 using ATS.Domain.Candidaturas.Entities;
 using ATS.Domain.Candidaturas.Enums;
+using ATS.Domain.Candidaturas.Events;
 using Xunit;
 
 namespace ATS.Domain.Tests.Candidaturas;

@@ -1,5 +1,6 @@
 using ATS.API.Controllers;
 using ATS.API.Requests.Vagas;
+using ATS.Application.Common.Events;
 using ATS.Application.Common.Pagination;
 using ATS.Application.Vagas.Commands.CreateVaga;
 using ATS.Application.Vagas.Commands.DeleteVaga;
@@ -21,19 +22,24 @@ namespace ATS.API.Tests.Controllers;
 public class VagasControllerTests
 {
     private readonly Mock<IVagaRepository> _vagaRepositoryMock;
+    private readonly Mock<IDomainEventDispatcher> _dispatcherMock;
     private readonly VagasController _controller;
 
     public VagasControllerTests()
     {
         _vagaRepositoryMock = new Mock<IVagaRepository>(MockBehavior.Strict);
+        _dispatcherMock = new Mock<IDomainEventDispatcher>();
+        _dispatcherMock
+            .Setup(d => d.DispatchAndClearAsync(It.IsAny<AggregateRoot>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
 
         _controller = new VagasController(
-            new CreateVagaHandler(_vagaRepositoryMock.Object, NullLogger<CreateVagaHandler>.Instance),
+            new CreateVagaHandler(_vagaRepositoryMock.Object, _dispatcherMock.Object, NullLogger<CreateVagaHandler>.Instance),
             new GetVagaByIdHandler(_vagaRepositoryMock.Object),
             new ListVagasHandler(_vagaRepositoryMock.Object),
             new UpdateVagaHandler(_vagaRepositoryMock.Object, NullLogger<UpdateVagaHandler>.Instance),
             new DeleteVagaHandler(_vagaRepositoryMock.Object, NullLogger<DeleteVagaHandler>.Instance),
-            new FecharVagaHandler(_vagaRepositoryMock.Object, NullLogger<FecharVagaHandler>.Instance));
+            new FecharVagaHandler(_vagaRepositoryMock.Object, _dispatcherMock.Object, NullLogger<FecharVagaHandler>.Instance));
     }
 
     [Fact]

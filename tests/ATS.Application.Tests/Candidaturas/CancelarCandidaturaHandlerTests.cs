@@ -1,8 +1,10 @@
 using ATS.Application.Candidaturas.Commands.CancelarCandidatura;
+using ATS.Application.Common.Events;
 using ATS.Domain.Candidatos.Entities;
 using ATS.Domain.Candidatos.Repositories;
 using ATS.Domain.Candidaturas.Entities;
 using ATS.Domain.Candidaturas.Enums;
+using ATS.Domain.Candidaturas.Events;
 using ATS.Domain.Candidaturas.Repositories;
 using ATS.Domain.Shared;
 using ATS.Domain.Vagas.Entities;
@@ -18,6 +20,7 @@ public class CancelarCandidaturaHandlerTests
     private readonly Mock<ICandidaturaRepository> _candidaturaRepoMock;
     private readonly Mock<ICandidatoRepository> _candidatoRepoMock;
     private readonly Mock<IVagaRepository> _vagaRepoMock;
+    private readonly Mock<IDomainEventDispatcher> _dispatcherMock;
     private readonly CancelarCandidaturaHandler _handler;
 
     private static readonly Guid _guidCandidatura = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
@@ -29,10 +32,15 @@ public class CancelarCandidaturaHandlerTests
         _candidaturaRepoMock = new Mock<ICandidaturaRepository>(MockBehavior.Strict);
         _candidatoRepoMock = new Mock<ICandidatoRepository>(MockBehavior.Strict);
         _vagaRepoMock = new Mock<IVagaRepository>(MockBehavior.Strict);
+        _dispatcherMock = new Mock<IDomainEventDispatcher>();
+        _dispatcherMock
+            .Setup(d => d.DispatchAndClearAsync(It.IsAny<AggregateRoot>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
         _handler = new CancelarCandidaturaHandler(
             _candidaturaRepoMock.Object,
             _candidatoRepoMock.Object,
             _vagaRepoMock.Object,
+            _dispatcherMock.Object,
             NullLogger<CancelarCandidaturaHandler>.Instance);
     }
 
@@ -231,5 +239,33 @@ public class CancelarCandidaturaHandlerTests
         _candidaturaRepoMock.Verify(r => r.AtualizarAsync(candidatura, ct), Times.Once);
         _candidatoRepoMock.Verify(r => r.ObterPorIdAsync(_guidCandidato, ct), Times.Once);
         _vagaRepoMock.Verify(r => r.ObterPorIdAsync(_guidVaga, ct), Times.Once);
+    }
+
+    [Fact]
+    public async Task CancelarDeveDispatchEventoAposPersistir()
+    {
+        var candidatura = Candidatura.Criar(_guidCandidato, _guidVaga);
+        SetupFluxoCompleto(candidatura);
+
+        await _handler.HandleAsync(new CancelarCandidaturaCommand(_guidCandidatura));
+
+        _dispatcherMock.Verify(
+            d => d.DispatchAndClearAsync(It.IsAny<AggregateRoot>(), It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task CancelarNaoDeveDispatchQuandoCandidaturaNaoEncontrada()
+    {
+        _candidaturaRepoMock
+            .Setup(r => r.ObterPorIdAsync(_guidCandidatura, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Candidatura?)null);
+
+        await Assert.ThrowsAsync<DomainException>(
+            () => _handler.HandleAsync(new CancelarCandidaturaCommand(_guidCandidatura)));
+
+        _dispatcherMock.Verify(
+            d => d.DispatchAndClearAsync(It.IsAny<AggregateRoot>(), It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 }

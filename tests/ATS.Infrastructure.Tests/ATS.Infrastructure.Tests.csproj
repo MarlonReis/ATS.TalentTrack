@@ -28,6 +28,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\ATS.Infrastructure\ATS.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\ATS.Domain\ATS.Domain.csproj" />
   </ItemGroup>
 
 </Project>

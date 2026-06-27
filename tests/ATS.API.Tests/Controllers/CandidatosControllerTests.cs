@@ -7,6 +7,7 @@ using ATS.Application.Candidatos.Commands.UpdateCandidato;
 using ATS.Application.Candidatos.DTOs;
 using ATS.Application.Candidatos.Queries.GetCandidatoById;
 using ATS.Application.Candidatos.Queries.ListCandidatos;
+using ATS.Application.Common.Events;
 using ATS.Application.Common.Pagination;
 using ATS.Domain.Candidatos.Entities;
 using ATS.Domain.Candidatos.Repositories;
@@ -20,19 +21,24 @@ namespace ATS.API.Tests.Controllers;
 public class CandidatosControllerTests
 {
     private readonly Mock<ICandidatoRepository> _candidatoRepositoryMock;
+    private readonly Mock<IDomainEventDispatcher> _dispatcherMock;
     private readonly CandidatosController _controller;
 
     public CandidatosControllerTests()
     {
         _candidatoRepositoryMock = new Mock<ICandidatoRepository>(MockBehavior.Strict);
+        _dispatcherMock = new Mock<IDomainEventDispatcher>();
+        _dispatcherMock
+            .Setup(d => d.DispatchAndClearAsync(It.IsAny<AggregateRoot>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
 
         _controller = new CandidatosController(
-            new CreateCandidatoHandler(_candidatoRepositoryMock.Object, NullLogger<CreateCandidatoHandler>.Instance),
+            new CreateCandidatoHandler(_candidatoRepositoryMock.Object, _dispatcherMock.Object, NullLogger<CreateCandidatoHandler>.Instance),
             new GetCandidatoByIdHandler(_candidatoRepositoryMock.Object),
             new ListCandidatosHandler(_candidatoRepositoryMock.Object),
-            new UpdateCandidatoHandler(_candidatoRepositoryMock.Object, NullLogger<UpdateCandidatoHandler>.Instance),
+            new UpdateCandidatoHandler(_candidatoRepositoryMock.Object, _dispatcherMock.Object, NullLogger<UpdateCandidatoHandler>.Instance),
             new DeleteCandidatoHandler(_candidatoRepositoryMock.Object, NullLogger<DeleteCandidatoHandler>.Instance),
-            new AddCurriculoHandler(_candidatoRepositoryMock.Object, NullLogger<AddCurriculoHandler>.Instance));
+            new AddCurriculoHandler(_candidatoRepositoryMock.Object, _dispatcherMock.Object, NullLogger<AddCurriculoHandler>.Instance));
     }
 
     [Fact]

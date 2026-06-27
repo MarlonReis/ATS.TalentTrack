@@ -10,20 +10,25 @@ using ATS.Application.Candidaturas.Commands.AprovarCandidatura;
 using ATS.Application.Candidaturas.Commands.CancelarCandidatura;
 using ATS.Application.Candidaturas.Commands.CandidatarSe;
 using ATS.Application.Candidaturas.Commands.ReprovarCandidatura;
+using ATS.Application.Candidaturas.Events;
 using ATS.Application.Candidaturas.Queries.GetCandidaturaById;
 using ATS.Application.Candidaturas.Queries.ListCandidatosPorVaga;
+using ATS.Application.Common.Events;
 using ATS.Application.Vagas.Commands.CreateVaga;
 using ATS.Application.Vagas.Commands.DeleteVaga;
 using ATS.Application.Vagas.Commands.FecharVaga;
 using ATS.Application.Vagas.Commands.UpdateVaga;
+using ATS.Application.Vagas.Events;
 using ATS.Application.Vagas.Queries.GetVagaById;
 using ATS.Application.Vagas.Queries.ListVagas;
 using ATS.Domain.Candidatos.Repositories;
 using ATS.Domain.Candidaturas.Repositories;
 using ATS.Domain.Vagas.Repositories;
+using ATS.Infrastructure.Events;
 using ATS.Infrastructure.Health;
 using ATS.Infrastructure.Persistence.Context;
 using ATS.Infrastructure.Persistence.Repositories;
+using MediatR;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -34,6 +39,11 @@ public static class DependencyInjection
         IConfiguration configuration
     )
     {
+        // ── MediatR + Domain Events ───────────────────────────────────────────
+        services.AddMediatR(cfg =>
+            cfg.RegisterServicesFromAssembly(typeof(AuditoriaCandidaturaHandler).Assembly));
+        services.AddScoped<IDomainEventDispatcher, MediatRDomainEventDispatcher>();
+
         // ── MongoDB ──────────────────────────────────────────────────────────
         services.AddMongoDb(configuration);
 

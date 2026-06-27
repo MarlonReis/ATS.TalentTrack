@@ -1,6 +1,7 @@
 namespace ATS.Domain.Candidaturas.Entities;
 
 using ATS.Domain.Candidaturas.Enums;
+using ATS.Domain.Candidaturas.Events;
 using ATS.Domain.Shared;
 
 public sealed class Candidatura : AggregateRoot
@@ -48,6 +49,7 @@ public sealed class Candidatura : AggregateRoot
 
         Status = StatusCandidatura.Aprovado;
         Observacoes = observacoes;
+        AddDomainEvent(new CandidaturaAprovadaEvent(Id, CandidatoId, VagaId, observacoes));
     }
 
     public void Reprovar(string? observacoes = null)
@@ -59,6 +61,7 @@ public sealed class Candidatura : AggregateRoot
 
         Status = StatusCandidatura.Reprovado;
         Observacoes = observacoes;
+        AddDomainEvent(new CandidaturaReprovadaEvent(Id, CandidatoId, VagaId, observacoes));
     }
 
     public void Cancelar()
@@ -69,5 +72,6 @@ public sealed class Candidatura : AggregateRoot
         }
 
         Status = StatusCandidatura.Cancelado;
+        AddDomainEvent(new CandidaturaCanceladaEvent(Id, CandidatoId, VagaId));
     }
 }

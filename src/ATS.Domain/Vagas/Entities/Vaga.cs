@@ -70,6 +70,7 @@ public sealed class Vaga : AggregateRoot
 
         Status = StatusVaga.Fechada;
         DataEncerramento = DateTime.UtcNow;
+        AddDomainEvent(new VagaFechadaEvent(Id, Titulo));
     }
 
     public void Reabrir()

@@ -35,6 +35,7 @@
 - [Banco de dados](#banco-de-dados)
 - [Swagger / OpenAPI](#swagger--openapi)
 - [Endpoints da API](#endpoints-da-api)
+- [Eventos de domínio](#eventos-de-domínio)
 - [Diagramas de sequência](#diagramas-de-sequência)
 - [Testes](#testes)
 - [Cobertura de código](#cobertura-de-código)
@@ -63,6 +64,7 @@ O ATS é um sistema de rastreamento de candidatos (Applicant Tracking System) de
 | **Candidatos** | Cadastro, consulta, listagem paginada, atualização de contato, upload de currículo |
 | **Vagas** | Publicação, consulta, listagem paginada, atualização, encerramento, exclusão |
 | **Candidaturas** | Criação, consulta, listagem por vaga, aprovação, reprovação, cancelamento |
+| **Eventos de domínio** | Dispatch interno via MediatR, auditoria, notificações por log e automações pós-evento |
 | **Observabilidade** | Logs estruturados (JSON), tracing distribuído (OTLP/Jaeger), métricas Prometheus, health checks |
 
 ---
@@ -74,6 +76,7 @@ O ATS é um sistema de rastreamento de candidatos (Applicant Tracking System) de
 | Runtime | [.NET 10](https://dotnet.microsoft.com) / ASP.NET Core 10 |
 | Banco de dados | [MongoDB 7.0](https://www.mongodb.com) via [MongoDB.Driver](https://www.nuget.org/packages/MongoDB.Driver) |
 | Logs | [Serilog](https://serilog.net) + Compact JSON Formatter |
+| Eventos internos | [MediatR](https://github.com/jbogard/MediatR) para publicação de eventos de domínio |
 | Tracing | [OpenTelemetry](https://opentelemetry.io) (OTLP exporter, Jaeger) |
 | Métricas | OpenTelemetry Metrics + [Prometheus](https://prometheus.io) |
 | Testes | [xUnit](https://xunit.net) + [Moq](https://github.com/moq/moq4) |
@@ -96,7 +99,7 @@ O projeto segue a arquitetura em camadas do **Domain-Driven Design (DDD)**, com 
 ┌───────────────▼────────────────┐   ┌──────────▼─────────────┐
 │        ATS.Application          │   │    ATS.Infrastructure   │
 │ Commands · Queries · Handlers   │   │ Repositories · MongoDB  │
-│ DTOs · Metrics                  │   │ Mappings · Health Checks│
+│ Events · DTOs · Metrics         │   │ Event Dispatcher · DI    │
 └───────────────┬────────────────┘   └──────────┬─────────────┘
                 │ depende de                     │ implementa interfaces
 ┌───────────────▼────────────────────────────────▼─────────────┐
@@ -106,20 +109,24 @@ O projeto segue a arquitetura em camadas do **Domain-Driven Design (DDD)**, com 
 └───────────────────────────────────────────────────────────────┘
 ```
 
-> **Nota arquitetural:** `ATS.Application` não referencia `ATS.Infrastructure`. A API referencia os dois projetos e usa `ATS.Infrastructure.DependencyInjection` como composition root prático para registrar repositórios, health checks e handlers. Em uma architecture mais estrita, os registros de handlers poderiam viver em um `ATS.Application.DependencyInjection` separado.
+> **Nota arquitetural:** `ATS.Application` não referencia `ATS.Infrastructure`. A API referencia os dois projetos e usa `ATS.Infrastructure.DependencyInjection` como composition root prático para registrar repositórios, health checks e handlers. Em uma Clean Architecture mais estrita, os registros de handlers poderiam viver em um `ATS.Application.DependencyInjection` separado.
 
 ### Responsabilidades por camada
 
-**`ATS.Domain`** — núcleo da aplicação, sem dependências externas.
+**`ATS.Domain`** — núcleo da aplicação, sem dependências de infraestrutura ou persistência.
 - Entidades (`Candidato`, `Vaga`, `Candidatura`) e regras de negócio via métodos de domínio
 - Value Objects imutáveis (`Email`, `Telefone`, `Salario`, `Curriculo`) com validação encapsulada
 - Enums de estado (`StatusCandidatura`, `StatusVaga`)
-- Eventos de domínio (`CandidatoCriadoEvent`, `VagaPublicadaEvent`, etc.)
+- Eventos de domínio (`CandidatoCriadoEvent`, `CandidaturaAprovadaEvent`, `VagaFechadaEvent`, etc.) implementando `IDomainEvent`
 - Interfaces de repositório (`ICandidatoRepository`, `IVagaRepository`, `ICandidaturaRepository`)
 - `DomainException` como mecanismo de sinalização de invariantes violadas
 
+> `IDomainEvent` estende `MediatR.INotification`; essa é a única dependência técnica do domínio e existe para permitir dispatch interno sem acoplamento com infraestrutura de persistência.
+
 **`ATS.Application`** — orquestração dos casos de uso.
 - Handlers de Commands (operações de escrita) e Queries (operações de leitura) por agregado
+- Event handlers MediatR para auditoria, notificações e automações internas pós-evento
+- `IDomainEventDispatcher` como contrato de publicação e limpeza de eventos dos agregados
 - DTOs para projeção de dados entre camadas
 - `PagedResult<T>` para respostas paginadas
 - `AtsMetrics` com contadores OpenTelemetry para métricas de negócio
@@ -128,6 +135,7 @@ O projeto segue a arquitetura em camadas do **Domain-Driven Design (DDD)**, com 
 **`ATS.Infrastructure`** — implementações de infraestrutura.
 - Implementações concretas dos repositórios usando `MongoDB.Driver`
 - `MongoDbContext` e mapeamento BSON via `BsonClassMap`
+- `MediatRDomainEventDispatcher` para publicar `IDomainEvent` e limpar a fila do agregado
 - `MongoDbHealthCheck` para o health check `ready`
 - `DependencyInjection` — registro de todos os serviços e handlers no container IoC
 
@@ -141,8 +149,8 @@ O projeto segue a arquitetura em camadas do **Domain-Driven Design (DDD)**, com 
 
 **`tests/`** — estratégia de testes em cinco projetos:
 - `ATS.Domain.Tests` — regras de domínio, value objects e invariantes
-- `ATS.Application.Tests` — handlers com repositórios mockados (MockBehavior.Strict)
-- `ATS.Infrastructure.Tests` — repositórios contra MongoDB em memória/real
+- `ATS.Application.Tests` — handlers, event handlers e repositórios mockados (MockBehavior.Strict)
+- `ATS.Infrastructure.Tests` — repositórios contra MongoDB em memória/real e dispatcher MediatR
 - `ATS.API.Tests` — controllers, middlewares e extensões de observabilidade
 - `ATS.E2E.Tests` — fluxos completos com Testcontainers + MongoDB real
 
@@ -176,13 +184,16 @@ ATS.Solution/
 │   │   │   └── DTOs/
 │   │   ├── Vagas/
 │   │   │   ├── Commands/          # CreateVaga, UpdateVaga, DeleteVaga, FecharVaga
+│   │   │   ├── Events/            # FecharVagaAposPrimeiraAprovacaoHandler
 │   │   │   ├── Queries/           # GetVagaById, ListVagas
 │   │   │   └── DTOs/
 │   │   ├── Candidaturas/
 │   │   │   ├── Commands/          # CandidatarSe, AprovarCandidatura, ReprovarCandidatura, CancelarCandidatura
+│   │   │   ├── Events/            # Auditoria, notificação e cancelamento automático
 │   │   │   ├── Queries/           # GetCandidaturaById, ListCandidatosPorVaga
 │   │   │   └── DTOs/
 │   │   ├── Common/
+│   │   │   ├── Events/            # IDomainEventDispatcher
 │   │   │   └── Pagination/        # PagedResult<T>
 │   │   └── Observability/
 │   │       └── AtsMetrics.cs
@@ -196,13 +207,13 @@ ATS.Solution/
 │   │   ├── Vagas/
 │   │   │   ├── Entities/          # Vaga
 │   │   │   ├── Enums/             # StatusVaga
-│   │   │   ├── Events/            # VagaPublicadaEvent
+│   │   │   ├── Events/            # VagaPublicadaEvent, VagaFechadaEvent
 │   │   │   ├── Repositories/      # IVagaRepository
 │   │   │   └── ValueObjects/      # Salario
 │   │   ├── Candidaturas/
 │   │   │   ├── Entities/          # Candidatura
 │   │   │   ├── Enums/             # StatusCandidatura
-│   │   │   ├── Events/            # CandidaturaRealizadaEvent
+│   │   │   ├── Events/            # Realizada, Aprovada, Reprovada, Cancelada
 │   │   │   └── Repositories/      # ICandidaturaRepository
 │   │   └── Shared/
 │   │       ├── AggregateRoot.cs
@@ -212,6 +223,8 @@ ATS.Solution/
 │   │       └── DomainException.cs
 │   │
 │   └── ATS.Infrastructure/
+│       ├── Events/
+│       │   └── MediatRDomainEventDispatcher.cs
 │       ├── Health/
 │       │   └── MongoDbHealthCheck.cs
 │       ├── Persistence/
@@ -454,6 +467,88 @@ GET    /metrics        → texto Prometheus
 
 ---
 
+## Eventos de domínio
+
+O projeto usa eventos de domínio para desacoplar regras secundárias de efeitos colaterais do fluxo principal dos casos de uso. Os agregados registram eventos em memória por meio de `AddDomainEvent(...)`; os handlers de Application persistem o agregado e, em seguida, chamam `IDomainEventDispatcher.DispatchAndClearAsync(...)`. A implementação concreta fica em `ATS.Infrastructure.Events.MediatRDomainEventDispatcher` e publica os eventos via MediatR.
+
+> **Escopo atual:** os eventos são internos ao processo da API. Não há outbox, fila, retry persistente ou mensageria externa. A publicação acontece dentro do ciclo da requisição HTTP, após a persistência do agregado principal.
+
+### Modelo de execução
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Controller as API Controller
+    participant UseCase as Application Handler
+    participant Aggregate as Aggregate Root
+    participant Repository as Repository
+    participant Dispatcher as IDomainEventDispatcher
+    participant Mediator as MediatR
+    participant EventHandler as INotificationHandler
+
+    Controller->>+UseCase: HandleAsync(command)
+    UseCase->>+Aggregate: metodo de dominio()
+    Aggregate->>Aggregate: AddDomainEvent(event)
+    Aggregate-->>-UseCase: estado mutado + eventos pendentes
+    critical Persistencia antes da publicação
+        UseCase->>+Repository: AdicionarAsync / AtualizarAsync
+        Repository-->>-UseCase: ok
+    end
+    UseCase->>+Dispatcher: DispatchAndClearAsync(aggregate)
+    Dispatcher->>Dispatcher: copia DomainEvents e chama ClearDomainEvents()
+    loop para cada evento
+        Dispatcher->>+Mediator: Publish(domainEvent)
+        Mediator->>+EventHandler: Handle(domainEvent)
+        EventHandler-->>-Mediator: Task concluida
+        Mediator-->>-Dispatcher: publicado
+    end
+    Dispatcher-->>-UseCase: eventos processados
+    UseCase-->>-Controller: DTO / resultado
+```
+
+**Passo a passo**
+
+1. O controller delega a operação ao handler de Application.
+2. O handler invoca um método de domínio, como `Candidatura.Aprovar()` ou `Vaga.Fechar()`.
+3. O agregado altera seu estado e adiciona um ou mais `IDomainEvent` à coleção `DomainEvents`.
+4. O repositório persiste o agregado no MongoDB antes de qualquer publicação.
+5. O dispatcher copia os eventos, limpa a coleção do agregado e publica cada evento via MediatR.
+6. Os event handlers executam efeitos internos como logs de auditoria, notificações por log e automações de estado.
+
+### Catálogo de eventos
+
+| Evento | Disparado por | Agregado | Publicado por |
+|--------|---------------|----------|---------------|
+| `CandidatoCriadoEvent` | `Candidato.Criar()` | `Candidato` | `CreateCandidatoHandler` |
+| `CurriculoAdicionadoEvent` | `Candidato.AdicionarCurriculo()` | `Candidato` | `AddCurriculoHandler` |
+| `VagaPublicadaEvent` | `Vaga.Criar()` | `Vaga` | `CreateVagaHandler` |
+| `VagaFechadaEvent` | `Vaga.Fechar()` | `Vaga` | `FecharVagaHandler` |
+| `CandidaturaRealizadaEvent` | `Candidatura.Criar()` | `Candidatura` | `CandidatarSeHandler` |
+| `CandidaturaAprovadaEvent` | `Candidatura.Aprovar()` | `Candidatura` | `AprovarCandidaturaHandler` |
+| `CandidaturaReprovadaEvent` | `Candidatura.Reprovar()` | `Candidatura` | `ReprovarCandidaturaHandler` |
+| `CandidaturaCanceladaEvent` | `Candidatura.Cancelar()` | `Candidatura` | `CancelarCandidaturaHandler` |
+
+### Event handlers registrados
+
+| Handler | Evento consumido | Responsabilidade atual |
+|---------|------------------|------------------------|
+| `AuditoriaCandidaturaHandler` | `CandidaturaRealizadaEvent`, `CandidaturaAprovadaEvent`, `CandidaturaReprovadaEvent`, `CandidaturaCanceladaEvent` | Registra log estruturado de auditoria da candidatura |
+| `NotificarCandidatoAprovadoHandler` | `CandidaturaAprovadaEvent` | Registra log de notificação de aprovação |
+| `NotificarCandidatoReprovadoHandler` | `CandidaturaReprovadaEvent` | Registra log de notificação de reprovação |
+| `FecharVagaAposPrimeiraAprovacaoHandler` | `CandidaturaAprovadaEvent` | Fecha a vaga quando uma candidatura é aprovada |
+| `CancelarCandidaturasPendentesHandler` | `VagaFechadaEvent` | Cancela candidaturas `EmAnalise` quando a vaga é fechada pelo fluxo explícito |
+
+### Pontos de consistência
+
+- O dispatcher limpa `DomainEvents` antes de publicar para evitar reprocessamento do mesmo agregado na mesma instância.
+- Não há outbox transacional; se um event handler falhar, o agregado principal já foi persistido.
+- `FecharVagaAposPrimeiraAprovacaoHandler` fecha a vaga como efeito do `CandidaturaAprovadaEvent`, mas não redispatcha o `VagaFechadaEvent` gerado por `Vaga.Fechar()`.
+- `CancelarCandidaturasPendentesHandler` cancela candidaturas pendentes ao consumir `VagaFechadaEvent`, mas não redispatcha os `CandidaturaCanceladaEvent` gerados nesses agregados.
+- Handlers podem chamar o dispatcher mesmo quando o agregado não possui eventos pendentes; nesse caso, a operação é um no-op.
+- Eventos que não possuem handlers registrados são publicados sem efeito colateral além do custo de dispatch.
+
+---
+
 ## Diagramas de sequência
 
 Os diagramas abaixo foram derivados diretamente dos controllers, handlers, entidades de domínio, repositórios, middlewares e configurações de inicialização do projeto. A notação usa chamadas `->>` para invocações aguardadas, retornos `-->>`, blocos `alt/else` para variações de regra de negócio, `opt` para comportamento opcional, `loop` para iteração e `critical` para trechos onde a consistência da persistência é relevante.
@@ -561,6 +656,8 @@ sequenceDiagram
     participant Repo as ICandidatoRepository
     participant Mongo as MongoDB.candidatos
     participant Domain as Candidato + Value Objects
+    participant Dispatcher as IDomainEventDispatcher
+    participant Mediator as MediatR
     participant Metrics as AtsMetrics
 
     Cliente->>+Controller: POST /api/v1/candidatos
@@ -586,6 +683,10 @@ sequenceDiagram
                 Mongo-->>-Repo: documento gravado
                 Repo-->>-Handler: ok
             end
+            Handler->>+Dispatcher: DispatchAndClearAsync(candidato)
+            Dispatcher->>+Mediator: Publish(CandidatoCriadoEvent)
+            Mediator-->>-Dispatcher: sem handlers registrados
+            Dispatcher-->>-Handler: eventos limpos
             Handler->>Metrics: CandidatosCriados.Add(1)
             Handler-->>-Controller: CandidatoDto
             Controller-->>-Cliente: 201 Created + Location
@@ -599,7 +700,8 @@ sequenceDiagram
 2. O handler consulta o repositório por e-mail para bloquear duplicidade antes da criação.
 3. O domínio valida nome, e-mail e telefone, normalizando e-mail para minúsculas e telefone para dígitos.
 4. O repositório grava o documento em `candidatos`; a infraestrutura também cria índice único em `email.value`.
-5. A métrica de negócio é incrementada e a API responde `201 Created`.
+5. O dispatcher publica e limpa o `CandidatoCriadoEvent`; como não há handler registrado para esse evento, não há efeito colateral adicional.
+6. A métrica de negócio é incrementada e a API responde `201 Created`.
 
 ### 4. Publicação e fechamento de vaga
 
@@ -613,8 +715,12 @@ sequenceDiagram
     participant CreateHandler as CreateVagaHandler
     participant FecharHandler as FecharVagaHandler
     participant Repo as IVagaRepository
-    participant Mongo as MongoDB.vagas
+    participant CandidRepo as ICandidaturaRepository
+    participant Mongo as MongoDB
     participant Domain as Vaga + Salario
+    participant Dispatcher as IDomainEventDispatcher
+    participant Mediator as MediatR
+    participant CancelarHandler as CancelarCandidaturasPendentesHandler
     participant Metrics as AtsMetrics
 
     alt publicar vaga
@@ -631,6 +737,10 @@ sequenceDiagram
             Repo->>+Mongo: await InsertOneAsync(vaga)
             Mongo-->>-Repo: documento gravado
             Repo-->>-CreateHandler: ok
+            CreateHandler->>+Dispatcher: DispatchAndClearAsync(vaga)
+            Dispatcher->>+Mediator: Publish(VagaPublicadaEvent)
+            Mediator-->>-Dispatcher: sem handlers registrados
+            Dispatcher-->>-CreateHandler: eventos limpos
             CreateHandler->>Metrics: VagasCriadas.Add(1)
             CreateHandler-->>-Controller: VagaDto
             Controller-->>Cliente: 201 Created
@@ -654,6 +764,19 @@ sequenceDiagram
                 Repo->>+Mongo: await ReplaceOneAsync(vaga)
                 Mongo-->>-Repo: documento atualizado
                 Repo-->>-FecharHandler: ok
+                FecharHandler->>+Dispatcher: DispatchAndClearAsync(vaga)
+                Dispatcher->>+Mediator: Publish(VagaFechadaEvent)
+                Mediator->>+CancelarHandler: Handle(VagaFechadaEvent)
+                CancelarHandler->>+CandidRepo: ListarPorVagaAsync(vagaId)
+                CandidRepo-->>-CancelarHandler: candidaturas da vaga
+                loop candidaturas EmAnalise
+                    CancelarHandler->>CancelarHandler: candidatura.Cancelar()
+                    CancelarHandler->>+CandidRepo: AtualizarAsync(candidatura)
+                    CandidRepo-->>-CancelarHandler: ok
+                end
+                CancelarHandler-->>-Mediator: Task concluida
+                Mediator-->>-Dispatcher: publicado
+                Dispatcher-->>-FecharHandler: eventos limpos
                 FecharHandler-->>-Controller: VagaDto
                 Controller-->>Cliente: 200 OK
             end
@@ -664,10 +787,11 @@ sequenceDiagram
 **Passo a passo**
 
 1. Na publicação, a entidade `Vaga` valida título, descrição e salário, cria o agregado em estado `Aberta` e registra `VagaPublicadaEvent`.
-2. Na persistência, `VagaRepository` grava em `vagas` usando `MongoDB.Driver`.
+2. Na persistência, `VagaRepository` grava em `vagas` usando `MongoDB.Driver` e o dispatcher publica o evento.
 3. No fechamento, o handler busca a vaga antes de alterar o estado.
 4. `Vaga.Fechar()` impede fechar uma vaga que já está fechada; o middleware traduz esse caso para `409 Conflict`.
-5. A atualização é feita por substituição do documento da vaga.
+5. A atualização é feita por substituição do documento da vaga e, em seguida, `VagaFechadaEvent` é publicado.
+6. `CancelarCandidaturasPendentesHandler` consome o evento e cancela candidaturas `EmAnalise` relacionadas à vaga.
 
 ### 5. Consultas por ID e listagens paginadas
 
@@ -858,6 +982,8 @@ sequenceDiagram
     participant Repo as ICandidatoRepository
     participant Mongo as MongoDB.candidatos
     participant Domain as Candidato + Curriculo
+    participant Dispatcher as IDomainEventDispatcher
+    participant Mediator as MediatR
 
     Cliente->>+Controller: POST /api/v1/candidatos/{id}/curriculo
     Controller->>+Handler: HandleAsync(AddCurriculoCommand)
@@ -879,6 +1005,10 @@ sequenceDiagram
             Repo->>+Mongo: await ReplaceOneAsync(candidato)
             Mongo-->>-Repo: documento atualizado
             Repo-->>-Handler: ok
+            Handler->>+Dispatcher: DispatchAndClearAsync(candidato)
+            Dispatcher->>+Mediator: Publish(CurriculoAdicionadoEvent)
+            Mediator-->>-Dispatcher: sem handlers registrados
+            Dispatcher-->>-Handler: eventos limpos
             Handler-->>-Controller: CandidatoDto
             Controller-->>-Cliente: 200 OK
         end
@@ -891,7 +1021,8 @@ sequenceDiagram
 2. `Candidato.AdicionarCurriculo()` delega validações para `Curriculo.Create()`.
 3. O domínio exige nome de arquivo, conteúdo e extensão permitida.
 4. O candidato inteiro é persistido novamente com o currículo anexado.
-5. O retorno é o `CandidatoDto`, já refletindo `PossuiCurriculo = true`.
+5. O dispatcher publica e limpa `CurriculoAdicionadoEvent`; atualmente não há handler registrado para esse evento.
+6. O retorno é o `CandidatoDto`, já refletindo `PossuiCurriculo = true`.
 
 ### 9. Criação de candidatura
 
@@ -908,6 +1039,9 @@ sequenceDiagram
     participant CandidRepo as ICandidaturaRepository
     participant Mongo as MongoDB
     participant Domain as Candidatura
+    participant Dispatcher as IDomainEventDispatcher
+    participant Mediator as MediatR
+    participant Audit as AuditoriaCandidaturaHandler
     participant Metrics as AtsMetrics
 
     Cliente->>+Controller: POST /api/v1/candidaturas
@@ -944,6 +1078,12 @@ sequenceDiagram
                         Mongo-->>-CandidRepo: documento gravado
                         CandidRepo-->>-Handler: ok
                     end
+                    Handler->>+Dispatcher: DispatchAndClearAsync(candidatura)
+                    Dispatcher->>+Mediator: Publish(CandidaturaRealizadaEvent)
+                    Mediator->>+Audit: Handle(CandidaturaRealizadaEvent)
+                    Audit-->>-Mediator: log de auditoria
+                    Mediator-->>-Dispatcher: publicado
+                    Dispatcher-->>-Handler: eventos limpos
                     Handler->>Metrics: CandidaturasCriadas.Add(1)
                     Handler-->>-Controller: CandidaturaDto
                     Controller-->>-Cliente: 201 Created
@@ -960,6 +1100,7 @@ sequenceDiagram
 3. O repositório verifica se já existe uma candidatura para o par `candidatoId + vagaId`.
 4. O domínio cria a candidatura em status `EmAnalise` e registra o evento `CandidaturaRealizadaEvent`.
 5. O repositório de infraestrutura cria índice único composto para reforçar a unicidade no MongoDB.
+6. O dispatcher publica `CandidaturaRealizadaEvent`, que é consumido por `AuditoriaCandidaturaHandler`.
 
 ### 10. Aprovação, reprovação e cancelamento de candidatura
 
@@ -976,6 +1117,11 @@ sequenceDiagram
     participant VagaRepo as IVagaRepository
     participant Mongo as MongoDB
     participant Domain as Candidatura
+    participant Dispatcher as IDomainEventDispatcher
+    participant Mediator as MediatR
+    participant Audit as AuditoriaCandidaturaHandler
+    participant Notify as Notificacao por log
+    participant AutoClose as FecharVagaAposPrimeiraAprovacaoHandler
 
     Cliente->>+Controller: PATCH /api/v1/candidaturas/{id}/{acao}
     Controller->>+Handler: HandleAsync(Command)
@@ -1002,6 +1148,34 @@ sequenceDiagram
             CandidRepo->>+Mongo: await ReplaceOneAsync(candidatura)
             Mongo-->>-CandidRepo: documento atualizado
             CandidRepo-->>-Handler: ok
+            Handler->>+Dispatcher: DispatchAndClearAsync(candidatura)
+            Dispatcher->>+Mediator: Publish(evento da transicao)
+            alt acao = aprovar
+                Mediator->>+Audit: Handle(CandidaturaAprovadaEvent)
+                Audit-->>-Mediator: log de auditoria
+                Mediator->>+Notify: NotificarCandidatoAprovadoHandler
+                Notify-->>-Mediator: log de notificacao
+                Mediator->>+AutoClose: Handle(CandidaturaAprovadaEvent)
+                AutoClose->>+VagaRepo: ObterPorIdAsync(vagaId)
+                VagaRepo-->>-AutoClose: Vaga?
+                opt vaga aberta
+                    AutoClose->>AutoClose: vaga.Fechar()
+                    AutoClose->>+VagaRepo: AtualizarAsync(vaga)
+                    VagaRepo-->>-AutoClose: ok
+                    Note right of AutoClose: O VagaFechadaEvent gerado aqui nao e redispatchado.
+                end
+                AutoClose-->>-Mediator: Task concluida
+            else acao = reprovar
+                Mediator->>+Audit: Handle(CandidaturaReprovadaEvent)
+                Audit-->>-Mediator: log de auditoria
+                Mediator->>+Notify: NotificarCandidatoReprovadoHandler
+                Notify-->>-Mediator: log de notificacao
+            else acao = cancelar
+                Mediator->>+Audit: Handle(CandidaturaCanceladaEvent)
+                Audit-->>-Mediator: log de auditoria
+            end
+            Mediator-->>-Dispatcher: publicado
+            Dispatcher-->>-Handler: eventos limpos
             Handler->>+CandRepo: ObterPorIdAsync(candidatoId)
             CandRepo->>+Mongo: await Find(candidato)
             Mongo-->>-CandRepo: Candidato?
@@ -1025,8 +1199,10 @@ sequenceDiagram
 1. O handler carrega a candidatura e delega a transição à entidade.
 2. `Aprovar` e `Reprovar` só aceitam candidaturas em `EmAnalise`.
 3. `Cancelar` impede cancelar novamente uma candidatura já cancelada.
-4. Após persistir a mudança, o handler busca candidato e vaga para retornar nomes no DTO.
-5. Caso os vínculos tenham sido removidos, a resposta de erro é produzida após a alteração já ter sido persistida.
+4. Após persistir a mudança, o handler publica o evento gerado pela transição.
+5. Eventos de aprovação/reprovação geram logs de notificação e auditoria; aprovação também tenta fechar a vaga relacionada.
+6. Após o dispatch, o handler busca candidato e vaga para retornar nomes no DTO.
+7. Caso os vínculos tenham sido removidos, a resposta de erro é produzida após a alteração já ter sido persistida.
 
 ### 11. Consulta detalhada e listagem de candidatos por vaga
 
@@ -1214,7 +1390,8 @@ sequenceDiagram
 
 - **Autenticação/autorização:** não há autenticação JWT, roles, policies ou `[Authorize]` implementados. O uso de `UseAuthorization()` hoje não protege as rotas.
 - **Validação:** não há camada de validators externos como FluentValidation. As validações vivem em handlers e, principalmente, nos métodos/factories do domínio.
-- **Eventos de domínio:** entidades registram eventos, mas não existe dispatcher/publicação para mensageria; os eventos permanecem no agregado.
+- **Eventos de domínio:** existe dispatch interno via MediatR, mas não há outbox, retry persistente ou mensageria externa.
+- **Redispatch em event handlers:** eventos gerados dentro de event handlers, como `VagaFechadaEvent` no fechamento automático após aprovação, não são publicados novamente.
 - **Transações:** não há sessões/transações MongoDB. Cada operação de repositório é uma chamada independente.
 - **Paginação de vagas filtradas:** `ListVagasHandler` pagina primeiro e filtra por status em memória depois; o `Total` retornado continua sendo o total geral da coleção.
 - **Remoções sem integridade referencial:** exclusão de candidato ou vaga não verifica candidaturas relacionadas, podendo deixar candidaturas com vínculos ausentes.
@@ -1230,12 +1407,17 @@ O projeto possui **645 testes** distribuídos em cinco projetos:
 | Projeto | Tipo | Foco |
 |---------|------|------|
 | `ATS.Domain.Tests` | Unitário | Entidades, Value Objects, invariantes de domínio |
-| `ATS.Application.Tests` | Unitário | Handlers com mocks estritos de repositórios |
-| `ATS.Infrastructure.Tests` | Integração | Repositórios contra MongoDB |
+| `ATS.Application.Tests` | Unitário | Handlers, event handlers e mocks estritos de repositórios |
+| `ATS.Infrastructure.Tests` | Integração | Repositórios contra MongoDB e dispatcher MediatR |
 | `ATS.API.Tests` | Unitário | Controllers, ExceptionHandlingMiddleware, ObservabilityExtensions |
 | `ATS.E2E.Tests` | E2E | Fluxos completos com Testcontainers + MongoDB real |
 
 Resumo refletido nos badges do topo: **594** testes unitários/integração sem E2E + **51** testes E2E = **645** testes.
+
+Cobertura específica de eventos de domínio:
+- `ATS.Domain.Tests` valida criação dos eventos e acúmulo em `DomainEvents`.
+- `ATS.Application.Tests` valida dispatch após persistência e comportamento dos `INotificationHandler<TEvent>`.
+- `ATS.Infrastructure.Tests` valida `MediatRDomainEventDispatcher`, publicação via `IMediator` e limpeza dos eventos do agregado.
 
 ### Executar todos os testes unitários
 
@@ -1341,12 +1523,20 @@ Endpoint de scraping: `GET /metrics`
 
 Cada agregado (`Candidato`, `Vaga`, `Candidatura`) é a unidade de consistência do domínio. Toda regra de negócio vive dentro das entidades — sem lógica de domínio vazando para handlers ou controllers. Value Objects (`Email`, `Telefone`, `Salario`) encapsulam validação e igualdade estrutural.
 
-### CQRS-style (sem MediatR)
+### CQRS-style com handlers explícitos
 
-Commands e Queries são separados em pastas distintas dentro de `ATS.Application`. Cada handler é uma classe focada com injeção explícita de dependências via construtor. Essa abordagem foi escolhida por:
+Commands e Queries são separados em pastas distintas dentro de `ATS.Application`. Cada caso de uso é invocado diretamente pelo controller por meio de um handler explícito, sem pipeline genérico de MediatR para comandos/queries. O MediatR é usado apenas para publicação interna de eventos de domínio.
+
+Essa abordagem foi escolhida por:
 - Eliminar a indireção de pipeline genérico para um projeto com escopo bem definido
 - Facilitar rastreamento de chamadas em IDEs (Go to Definition funciona diretamente)
 - Manter o registro de handlers visível e explícito em `DependencyInjection.cs`
+
+### Domain Events com MediatR
+
+Agregados adicionam eventos à coleção `DomainEvents` durante mudanças de estado relevantes. Handlers de Application persistem o agregado e chamam `IDomainEventDispatcher`, implementado por `MediatRDomainEventDispatcher`, para publicar e limpar esses eventos.
+
+Esse modelo mantém o domínio livre de dependências de infraestrutura, mas permite acionar comportamentos secundários como auditoria, logs de notificação e automações internas. Como não há outbox transacional, os efeitos colaterais de evento são consistentes com o processo em memória, não com uma fila durável.
 
 ### Repository Pattern
 
@@ -1509,7 +1699,7 @@ Melhorias planejadas para versões futuras:
 - [ ] **Autenticação e autorização** — JWT Bearer com roles (Recrutador, Admin)
 - [ ] **Criação explícita de índices MongoDB** — índice em `Email.Value` para unicidade de candidatos, índice composto em `CandidatoId + VagaId` para candidaturas
 - [ ] **Paginação com cursor** — substituir paginação por offset por paginação baseada em cursor para melhor performance em grandes volumes
-- [ ] **Publicação de eventos de domínio** — integração com mensageria (RabbitMQ / Azure Service Bus) para notificações assíncronas de mudança de status
+- [ ] **Outbox e mensageria para eventos de domínio** — persistir eventos e publicar em RabbitMQ / Azure Service Bus com retry e rastreabilidade
 - [ ] **FluentValidation** — validação declarativa de Commands com mensagens de erro detalhadas
 - [ ] **Rate limiting** — throttling por IP/usuário nas rotas públicas
 - [ ] **Audit log** — registro imutável de todas as transições de estado das candidaturas
@@ -1527,5 +1717,5 @@ Distribuído sob a licença **MIT**. Consulte o arquivo [LICENSE](LICENSE) para 
 ## Autor
 
 **Marlon Reis**  
-[marlongreis91@gmail.com](mailto:marlongreis91@gmail.com)  
-[github.com/marlongreis91](https://github.com/marlongreis91)
+[marlonreis.dev@outlook.com](mailto:marlonreis.dev@outlook.com)  
+[github.com/MarlonReis](https://github.com/MarlonReis/ATS.TalentTrack)

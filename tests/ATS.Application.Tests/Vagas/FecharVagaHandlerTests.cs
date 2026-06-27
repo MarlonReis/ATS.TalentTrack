@@ -1,8 +1,10 @@
 
+using ATS.Application.Common.Events;
 using ATS.Application.Vagas.Commands.FecharVaga;
 using ATS.Domain.Shared;
 using ATS.Domain.Vagas.Entities;
 using ATS.Domain.Vagas.Enums;
+using ATS.Domain.Vagas.Events;
 using ATS.Domain.Vagas.Repositories;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
@@ -13,13 +15,21 @@ namespace ATS.Application.Tests.Vagas;
 public class FecharVagaHandlerTests
 {
     private readonly Mock<IVagaRepository> _repoMock;
+    private readonly Mock<IDomainEventDispatcher> _dispatcherMock;
     private readonly FecharVagaHandler _handler;
     private static readonly Guid _guidVaga = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
 
     public FecharVagaHandlerTests()
     {
         _repoMock = new Mock<IVagaRepository>(MockBehavior.Strict);
-        _handler = new FecharVagaHandler(_repoMock.Object, NullLogger<FecharVagaHandler>.Instance);
+        _dispatcherMock = new Mock<IDomainEventDispatcher>();
+        _dispatcherMock
+            .Setup(d => d.DispatchAndClearAsync(It.IsAny<AggregateRoot>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        _handler = new FecharVagaHandler(
+            _repoMock.Object,
+            _dispatcherMock.Object,
+            NullLogger<FecharVagaHandler>.Instance);
     }
 
     private static Vaga CriarVagaAberta(string titulo = "Dev Back-end") =>
@@ -89,5 +99,29 @@ public class FecharVagaHandlerTests
         Assert.Equal("Vaga já está fechada.", excecao.Message);
         _repoMock.Verify(
             r => r.AtualizarAsync(It.IsAny<Vaga>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task FecharDeveDispatchEventoAposPersistir()
+    {
+        var vaga = CriarVagaAberta();
+        Vaga? vagaPassadaAoDispatcher = null;
+
+        _repoMock.Setup(r => r.ObterPorIdAsync(_guidVaga, It.IsAny<CancellationToken>()))
+                 .ReturnsAsync(vaga);
+        _repoMock.Setup(r => r.AtualizarAsync(vaga, It.IsAny<CancellationToken>()))
+                 .Returns(Task.CompletedTask);
+        _dispatcherMock
+            .Setup(d => d.DispatchAndClearAsync(It.IsAny<AggregateRoot>(), It.IsAny<CancellationToken>()))
+            .Callback<AggregateRoot, CancellationToken>((agg, _) => vagaPassadaAoDispatcher = agg as Vaga)
+            .Returns(Task.CompletedTask);
+
+        await _handler.HandleAsync(new FecharVagaCommand(_guidVaga));
+
+        _dispatcherMock.Verify(
+            d => d.DispatchAndClearAsync(It.IsAny<AggregateRoot>(), It.IsAny<CancellationToken>()),
+            Times.Once);
+        Assert.NotNull(vagaPassadaAoDispatcher);
+        Assert.Contains(vagaPassadaAoDispatcher!.DomainEvents, e => e is VagaFechadaEvent);
     }
 }

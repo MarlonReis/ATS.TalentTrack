@@ -1,6 +1,7 @@
 namespace ATS.Application.Candidaturas.Commands.CandidatarSe;
 
 using ATS.Application.Candidaturas.DTOs;
+using ATS.Application.Common.Events;
 using ATS.Application.Observability;
 using ATS.Domain.Candidatos.Repositories;
 using ATS.Domain.Candidaturas.Entities;
@@ -15,17 +16,20 @@ public partial class CandidatarSeHandler
     private readonly ICandidaturaRepository _candidaturaRepository;
     private readonly ICandidatoRepository _candidatoRepository;
     private readonly IVagaRepository _vagaRepository;
+    private readonly IDomainEventDispatcher _dispatcher;
     private readonly ILogger<CandidatarSeHandler> _logger;
 
     public CandidatarSeHandler(
         ICandidaturaRepository candidaturaRepository,
         ICandidatoRepository candidatoRepository,
         IVagaRepository vagaRepository,
+        IDomainEventDispatcher dispatcher,
         ILogger<CandidatarSeHandler> logger)
     {
         _candidaturaRepository = candidaturaRepository;
         _candidatoRepository = candidatoRepository;
         _vagaRepository = vagaRepository;
+        _dispatcher = dispatcher;
         _logger = logger;
     }
 
@@ -54,6 +58,7 @@ public partial class CandidatarSeHandler
 
         var candidatura = Candidatura.Criar(command.CandidatoId, command.VagaId);
         await _candidaturaRepository.AdicionarAsync(candidatura, ct);
+        await _dispatcher.DispatchAndClearAsync(candidatura, ct);
 
         AtsMetrics.CandidaturasCriadas.Add(1);
 

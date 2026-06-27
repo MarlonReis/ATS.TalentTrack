@@ -1,6 +1,7 @@
 namespace ATS.Application.Candidatos.Commands.UpdateCandidato;
 
 using ATS.Application.Candidatos.DTOs;
+using ATS.Application.Common.Events;
 using ATS.Domain.Candidatos.Repositories;
 using ATS.Domain.Shared;
 using Microsoft.Extensions.Logging;
@@ -8,13 +9,16 @@ using Microsoft.Extensions.Logging;
 public sealed partial class UpdateCandidatoHandler
 {
     private readonly ICandidatoRepository _repository;
+    private readonly IDomainEventDispatcher _dispatcher;
     private readonly ILogger<UpdateCandidatoHandler> _logger;
 
     public UpdateCandidatoHandler(
         ICandidatoRepository repository,
+        IDomainEventDispatcher dispatcher,
         ILogger<UpdateCandidatoHandler> logger)
     {
         _repository = repository;
+        _dispatcher = dispatcher;
         _logger = logger;
     }
 
@@ -35,6 +39,7 @@ public sealed partial class UpdateCandidatoHandler
         candidato.AtualizarContato(command.Nome, command.Email, command.Telefone);
 
         await _repository.AtualizarAsync(candidato, ct);
+        await _dispatcher.DispatchAndClearAsync(candidato, ct);
 
         LogCandidatoAtualizado(candidato.Id);
 

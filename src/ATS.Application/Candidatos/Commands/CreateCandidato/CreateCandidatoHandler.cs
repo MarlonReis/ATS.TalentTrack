@@ -1,6 +1,7 @@
 namespace ATS.Application.Candidatos.Commands.CreateCandidato;
 
 using ATS.Application.Candidatos.DTOs;
+using ATS.Application.Common.Events;
 using ATS.Application.Observability;
 using ATS.Domain.Candidatos.Entities;
 using ATS.Domain.Candidatos.Repositories;
@@ -10,13 +11,16 @@ using Microsoft.Extensions.Logging;
 public partial class CreateCandidatoHandler
 {
     private readonly ICandidatoRepository _repository;
+    private readonly IDomainEventDispatcher _dispatcher;
     private readonly ILogger<CreateCandidatoHandler> _logger;
 
     public CreateCandidatoHandler(
         ICandidatoRepository repository,
+        IDomainEventDispatcher dispatcher,
         ILogger<CreateCandidatoHandler> logger)
     {
         _repository = repository;
+        _dispatcher = dispatcher;
         _logger = logger;
     }
 
@@ -33,6 +37,7 @@ public partial class CreateCandidatoHandler
         var candidato = Candidato.Criar(command.Nome, command.Email, command.Telefone);
 
         await _repository.AdicionarAsync(candidato, ct);
+        await _dispatcher.DispatchAndClearAsync(candidato, ct);
 
         AtsMetrics.CandidatosCriados.Add(1);
 

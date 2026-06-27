@@ -1,4 +1,5 @@
 using ATS.Application.Candidatos.Commands.UpdateCandidato;
+using ATS.Application.Common.Events;
 using ATS.Domain.Candidatos.Entities;
 using ATS.Domain.Candidatos.Repositories;
 using ATS.Domain.Shared;
@@ -11,6 +12,7 @@ namespace ATS.Application.Tests.Candidatos;
 public class UpdateCandidatoHandlerTests
 {
     private readonly Mock<ICandidatoRepository> _repoMock;
+    private readonly Mock<IDomainEventDispatcher> _dispatcherMock;
     private readonly UpdateCandidatoHandler _handler;
 
     private static readonly Guid _guidCandidato = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
@@ -18,7 +20,14 @@ public class UpdateCandidatoHandlerTests
     public UpdateCandidatoHandlerTests()
     {
         _repoMock = new Mock<ICandidatoRepository>(MockBehavior.Strict);
-        _handler = new UpdateCandidatoHandler(_repoMock.Object, NullLogger<UpdateCandidatoHandler>.Instance);
+        _dispatcherMock = new Mock<IDomainEventDispatcher>();
+        _dispatcherMock
+            .Setup(d => d.DispatchAndClearAsync(It.IsAny<AggregateRoot>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        _handler = new UpdateCandidatoHandler(
+            _repoMock.Object,
+            _dispatcherMock.Object,
+            NullLogger<UpdateCandidatoHandler>.Instance);
     }
 
     private static Candidato CriarCandidato(

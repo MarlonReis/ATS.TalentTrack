@@ -1,5 +1,6 @@
 using ATS.Domain.Candidaturas.Entities;
 using ATS.Domain.Candidaturas.Enums;
+using ATS.Domain.Candidaturas.Events;
 using ATS.Domain.Shared;
 using Xunit;
 
@@ -137,7 +138,7 @@ public class CandidaturaTests
 
     [Theory]
     [InlineData("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb", "cccccccc-cccc-cccc-cccc-cccccccccccc")]
-    public void DeveNaoAdicionarNovosEventosAoAprovar(
+    public void DeveAdicionarEventoCandidaturaAprovadaAoAprovar(
         string candidatoIdStr, string vagaIdStr)
     {
 
@@ -148,7 +149,8 @@ public class CandidaturaTests
         candidatura.Aprovar();
 
 
-        Assert.Equal(quantidadeAntes, candidatura.DomainEvents.Count);
+        Assert.Equal(quantidadeAntes + 1, candidatura.DomainEvents.Count);
+        Assert.IsType<CandidaturaAprovadaEvent>(candidatura.DomainEvents.Last());
     }
 
 
@@ -239,7 +241,7 @@ public class CandidaturaTests
 
     [Theory]
     [InlineData("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb", "cccccccc-cccc-cccc-cccc-cccccccccccc")]
-    public void DeveNaoAdicionarNovosEventosAoReprovar(
+    public void DeveAdicionarEventoCandidaturaReprovadaAoReprovar(
         string candidatoIdStr, string vagaIdStr)
     {
 
@@ -250,7 +252,8 @@ public class CandidaturaTests
         candidatura.Reprovar();
 
 
-        Assert.Equal(quantidadeAntes, candidatura.DomainEvents.Count);
+        Assert.Equal(quantidadeAntes + 1, candidatura.DomainEvents.Count);
+        Assert.IsType<CandidaturaReprovadaEvent>(candidatura.DomainEvents.Last());
     }
 
 
@@ -362,7 +365,7 @@ public class CandidaturaTests
 
     [Theory]
     [InlineData("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb", "cccccccc-cccc-cccc-cccc-cccccccccccc")]
-    public void DeveNaoAdicionarNovosEventosAoCancelar(
+    public void DeveAdicionarEventoCandidaturaCanceladaAoCancelar(
         string candidatoIdStr, string vagaIdStr)
     {
 
@@ -373,7 +376,8 @@ public class CandidaturaTests
         candidatura.Cancelar();
 
 
-        Assert.Equal(quantidadeAntes, candidatura.DomainEvents.Count);
+        Assert.Equal(quantidadeAntes + 1, candidatura.DomainEvents.Count);
+        Assert.IsType<CandidaturaCanceladaEvent>(candidatura.DomainEvents.Last());
     }
 
 

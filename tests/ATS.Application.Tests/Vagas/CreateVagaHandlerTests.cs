@@ -1,3 +1,4 @@
+using ATS.Application.Common.Events;
 using ATS.Application.Vagas.Commands.CreateVaga;
 using ATS.Domain.Shared;
 using ATS.Domain.Vagas.Entities;
@@ -12,12 +13,20 @@ namespace ATS.Application.Tests.Vagas;
 public class CreateVagaHandlerTests
 {
     private readonly Mock<IVagaRepository> _repoMock;
+    private readonly Mock<IDomainEventDispatcher> _dispatcherMock;
     private readonly CreateVagaHandler _handler;
 
     public CreateVagaHandlerTests()
     {
         _repoMock = new Mock<IVagaRepository>(MockBehavior.Strict);
-        _handler = new CreateVagaHandler(_repoMock.Object, NullLogger<CreateVagaHandler>.Instance);
+        _dispatcherMock = new Mock<IDomainEventDispatcher>();
+        _dispatcherMock
+            .Setup(d => d.DispatchAndClearAsync(It.IsAny<AggregateRoot>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        _handler = new CreateVagaHandler(
+            _repoMock.Object,
+            _dispatcherMock.Object,
+            NullLogger<CreateVagaHandler>.Instance);
     }
 
     [Theory]
