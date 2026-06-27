@@ -4,6 +4,7 @@ using ATS.Domain.Candidatos.Entities;
 using ATS.Domain.Candidatos.Repositories;
 using ATS.Domain.Candidaturas.Entities;
 using ATS.Domain.Candidaturas.Enums;
+using ATS.Domain.Candidaturas.Events;
 using ATS.Domain.Candidaturas.Repositories;
 using ATS.Domain.Shared;
 using ATS.Domain.Vagas.Entities;
@@ -238,5 +239,56 @@ public class ReprovarCandidaturaHandlerTests
         _candidaturaRepoMock.Verify(r => r.AtualizarAsync(candidatura, ct), Times.Once);
         _candidatoRepoMock.Verify(r => r.ObterPorIdAsync(_guidCandidato, ct), Times.Once);
         _vagaRepoMock.Verify(r => r.ObterPorIdAsync(_guidVaga, ct), Times.Once);
+    }
+
+    [Fact]
+    public async Task ReprovarDeveDispatchEventoAposPersistir()
+    {
+        var candidatura = CriarCandidatura();
+        SetupFluxoCompleto(candidatura);
+
+        await _handler.HandleAsync(new ReprovarCandidaturaCommand(_guidCandidatura));
+
+        _dispatcherMock.Verify(
+            d => d.DispatchAndClearAsync(It.IsAny<AggregateRoot>(), It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task ReprovarDeveDispatchEventoComObservacoes()
+    {
+        var candidatura = CriarCandidatura();
+        Candidatura? candidaturaPassadaAoDispatcher = null;
+
+        SetupFluxoCompleto(candidatura);
+        _dispatcherMock
+            .Setup(d => d.DispatchAndClearAsync(It.IsAny<AggregateRoot>(), It.IsAny<CancellationToken>()))
+            .Callback<AggregateRoot, CancellationToken>((agg, _) =>
+                candidaturaPassadaAoDispatcher = agg as Candidatura)
+            .Returns(Task.CompletedTask);
+
+        await _handler.HandleAsync(new ReprovarCandidaturaCommand(_guidCandidatura, "Perfil inadequado"));
+
+        Assert.NotNull(candidaturaPassadaAoDispatcher);
+        var evento = candidaturaPassadaAoDispatcher!.DomainEvents
+            .OfType<CandidaturaReprovadaEvent>()
+            .SingleOrDefault();
+        Assert.NotNull(evento);
+        Assert.Equal("Perfil inadequado", evento!.Observacoes);
+    }
+
+    [Fact]
+    public async Task ReprovarNaoDeveDispatchQuandoCandidaturaNaoEncontrada()
+    {
+        _candidaturaRepoMock
+            .Setup(r => r.ObterPorIdAsync(_guidCandidatura, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Candidatura?)null);
+
+        await Assert.ThrowsAsync<DomainException>(
+            () => _handler.HandleAsync(new ReprovarCandidaturaCommand(_guidCandidatura)));
+
+        _dispatcherMock.Verify(
+            d => d.DispatchAndClearAsync(It.IsAny<AggregateRoot>(), It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 }

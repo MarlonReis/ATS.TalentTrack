@@ -4,6 +4,7 @@ using ATS.Domain.Candidatos.Entities;
 using ATS.Domain.Candidatos.Repositories;
 using ATS.Domain.Candidaturas.Entities;
 using ATS.Domain.Candidaturas.Enums;
+using ATS.Domain.Candidaturas.Events;
 using ATS.Domain.Candidaturas.Repositories;
 using ATS.Domain.Shared;
 using ATS.Domain.Vagas.Entities;
@@ -296,5 +297,85 @@ public class AprovarCandidaturaHandlerTests
             () => _handler.HandleAsync(new AprovarCandidaturaCommand(_guidCandidatura)));
 
         Assert.Equal("Vaga vinculada à candidatura não encontrada.", excecao.Message);
+    }
+
+    [Fact]
+    public async Task AprovarDeveDispatchEventoAposPersistir()
+    {
+        var candidatura = CriarCandidatura();
+        SetupFluxoCompleto(candidatura, CriarCandidato(), CriarVaga());
+
+        await _handler.HandleAsync(new AprovarCandidaturaCommand(_guidCandidatura));
+
+        _dispatcherMock.Verify(
+            d => d.DispatchAndClearAsync(It.IsAny<AggregateRoot>(), It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task AprovarDeveDispatchEventoComObservacoes()
+    {
+        var candidatura = CriarCandidatura();
+        Candidatura? candidaturaPassadaAoDispatcher = null;
+
+        SetupFluxoCompleto(candidatura, CriarCandidato(), CriarVaga());
+        _dispatcherMock
+            .Setup(d => d.DispatchAndClearAsync(It.IsAny<AggregateRoot>(), It.IsAny<CancellationToken>()))
+            .Callback<AggregateRoot, CancellationToken>((agg, _) =>
+                candidaturaPassadaAoDispatcher = agg as Candidatura)
+            .Returns(Task.CompletedTask);
+
+        await _handler.HandleAsync(new AprovarCandidaturaCommand(_guidCandidatura, "Excelente candidato"));
+
+        Assert.NotNull(candidaturaPassadaAoDispatcher);
+        var evento = candidaturaPassadaAoDispatcher!.DomainEvents
+            .OfType<CandidaturaAprovadaEvent>()
+            .SingleOrDefault();
+        Assert.NotNull(evento);
+        Assert.Equal("Excelente candidato", evento!.Observacoes);
+    }
+
+    [Fact]
+    public async Task AprovarNaoDeveDispatchQuandoCandidaturaNaoEncontrada()
+    {
+        _candidaturaRepoMock
+            .Setup(r => r.ObterPorIdAsync(_guidCandidatura, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Candidatura?)null);
+
+        await Assert.ThrowsAsync<DomainException>(
+            () => _handler.HandleAsync(new AprovarCandidaturaCommand(_guidCandidatura)));
+
+        _dispatcherMock.Verify(
+            d => d.DispatchAndClearAsync(It.IsAny<AggregateRoot>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task AprovarDeveDispatchAposAtualizarAsync()
+    {
+        var candidatura = CriarCandidatura();
+        var ordem = new List<string>();
+
+        _candidaturaRepoMock
+            .Setup(r => r.ObterPorIdAsync(_guidCandidatura, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(candidatura);
+        _candidaturaRepoMock
+            .Setup(r => r.AtualizarAsync(candidatura, It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask)
+            .Callback(() => ordem.Add("Atualizar"));
+        _candidatoRepoMock
+            .Setup(r => r.ObterPorIdAsync(_guidCandidato, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(CriarCandidato());
+        _vagaRepoMock
+            .Setup(r => r.ObterPorIdAsync(_guidVaga, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(CriarVaga());
+        _dispatcherMock
+            .Setup(d => d.DispatchAndClearAsync(It.IsAny<AggregateRoot>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask)
+            .Callback(() => ordem.Add("Dispatch"));
+
+        await _handler.HandleAsync(new AprovarCandidaturaCommand(_guidCandidatura));
+
+        Assert.Equal(new[] { "Atualizar", "Dispatch" }, ordem);
     }
 }

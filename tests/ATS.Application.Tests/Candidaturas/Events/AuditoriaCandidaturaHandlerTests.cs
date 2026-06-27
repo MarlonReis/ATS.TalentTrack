@@ -2,7 +2,9 @@ namespace ATS.Application.Tests.Candidaturas.Events;
 
 using ATS.Application.Candidaturas.Events;
 using ATS.Domain.Candidaturas.Events;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Moq;
 using Xunit;
 
 public class AuditoriaCandidaturaHandlerTests
@@ -88,5 +90,29 @@ public class AuditoriaCandidaturaHandlerTests
             new CandidaturaReprovadaEvent(_candidaturaId, _candidatoId, _vagaId, null), ct);
         await _handler.Handle(
             new CandidaturaCanceladaEvent(_candidaturaId, _candidatoId, _vagaId), ct);
+    }
+
+    [Fact]
+    public async Task HandleDeveLogarTodosOsQuatroEventosIndependentemente()
+    {
+        var loggerMock = new Mock<ILogger<AuditoriaCandidaturaHandler>>();
+        loggerMock
+            .Setup(l => l.IsEnabled(It.IsAny<LogLevel>()))
+            .Returns(true);
+        var handler = new AuditoriaCandidaturaHandler(loggerMock.Object);
+
+        await handler.Handle(new CandidaturaRealizadaEvent(_candidaturaId, _candidatoId, _vagaId), CancellationToken.None);
+        await handler.Handle(new CandidaturaAprovadaEvent(_candidaturaId, _candidatoId, _vagaId, null), CancellationToken.None);
+        await handler.Handle(new CandidaturaReprovadaEvent(_candidaturaId, _candidatoId, _vagaId, null), CancellationToken.None);
+        await handler.Handle(new CandidaturaCanceladaEvent(_candidaturaId, _candidatoId, _vagaId), CancellationToken.None);
+
+        loggerMock.Verify(
+            l => l.Log(
+                LogLevel.Information,
+                It.IsAny<EventId>(),
+                It.IsAny<It.IsAnyType>(),
+                It.IsAny<Exception?>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Exactly(4));
     }
 }

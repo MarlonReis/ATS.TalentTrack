@@ -2,7 +2,9 @@ namespace ATS.Application.Tests.Candidaturas.Events;
 
 using ATS.Application.Candidaturas.Events;
 using ATS.Domain.Candidaturas.Events;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Moq;
 using Xunit;
 
 public class NotificarCandidatoReprovadoHandlerTests
@@ -56,5 +58,29 @@ public class NotificarCandidatoReprovadoHandlerTests
             Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "obs");
 
         await _handler.Handle(notification, cts.Token);
+    }
+
+    [Fact]
+    public async Task HandleDeveLogarInformacaoQuandoHandleForChamado()
+    {
+        var loggerMock = new Mock<ILogger<NotificarCandidatoReprovadoHandler>>();
+        loggerMock
+            .Setup(l => l.IsEnabled(It.IsAny<LogLevel>()))
+            .Returns(true);
+        var handler = new NotificarCandidatoReprovadoHandler(loggerMock.Object);
+
+        var notification = new CandidaturaReprovadaEvent(
+            Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), null);
+
+        await handler.Handle(notification, CancellationToken.None);
+
+        loggerMock.Verify(
+            l => l.Log(
+                LogLevel.Information,
+                It.IsAny<EventId>(),
+                It.IsAny<It.IsAnyType>(),
+                It.IsAny<Exception?>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
     }
 }
