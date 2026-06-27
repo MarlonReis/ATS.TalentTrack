@@ -1527,5 +1527,5 @@ Distribuído sob a licença **MIT**. Consulte o arquivo [LICENSE](LICENSE) para 
 ## Autor
 
 **Marlon Reis**  
-[marlongreis91@gmail.com](mailto:marlongreis91@gmail.com)  
-[github.com/marlongreis91](https://github.com/marlongreis91)
+[marlonreis.dev@outlook.com](mailto:marlonreis.dev@outlook.com)  
+[github.com/MarlonReis](https://github.com/MarlonReis/ATS.TalentTrack)
