@@ -7,6 +7,7 @@ using ATS.Application.Candidaturas.Commands.ReprovarCandidatura;
 using ATS.Application.Candidaturas.DTOs;
 using ATS.Application.Candidaturas.Queries.GetCandidaturaById;
 using ATS.Application.Candidaturas.Queries.ListCandidatosPorVaga;
+using ATS.Application.Common.Events;
 using ATS.Domain.Candidatos.Entities;
 using ATS.Domain.Candidatos.Repositories;
 using ATS.Domain.Candidaturas.Entities;
@@ -26,6 +27,7 @@ public class CandidaturasControllerTests
     private readonly Mock<ICandidaturaRepository> _candidaturaRepositoryMock;
     private readonly Mock<ICandidatoRepository> _candidatoRepositoryMock;
     private readonly Mock<IVagaRepository> _vagaRepositoryMock;
+    private readonly Mock<IDomainEventDispatcher> _dispatcherMock;
     private readonly CandidaturasController _controller;
 
     public CandidaturasControllerTests()
@@ -33,12 +35,17 @@ public class CandidaturasControllerTests
         _candidaturaRepositoryMock = new Mock<ICandidaturaRepository>(MockBehavior.Strict);
         _candidatoRepositoryMock = new Mock<ICandidatoRepository>(MockBehavior.Strict);
         _vagaRepositoryMock = new Mock<IVagaRepository>(MockBehavior.Strict);
+        _dispatcherMock = new Mock<IDomainEventDispatcher>();
+        _dispatcherMock
+            .Setup(d => d.DispatchAndClearAsync(It.IsAny<AggregateRoot>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
 
         _controller = new CandidaturasController(
             new CandidatarSeHandler(
                 _candidaturaRepositoryMock.Object,
                 _candidatoRepositoryMock.Object,
                 _vagaRepositoryMock.Object,
+                _dispatcherMock.Object,
                 NullLogger<CandidatarSeHandler>.Instance),
             new GetCandidaturaByIdHandler(
                 _candidaturaRepositoryMock.Object,
@@ -48,16 +55,19 @@ public class CandidaturasControllerTests
                 _candidaturaRepositoryMock.Object,
                 _candidatoRepositoryMock.Object,
                 _vagaRepositoryMock.Object,
+                _dispatcherMock.Object,
                 NullLogger<AprovarCandidaturaHandler>.Instance),
             new ReprovarCandidaturaHandler(
                 _candidaturaRepositoryMock.Object,
                 _candidatoRepositoryMock.Object,
                 _vagaRepositoryMock.Object,
+                _dispatcherMock.Object,
                 NullLogger<ReprovarCandidaturaHandler>.Instance),
             new CancelarCandidaturaHandler(
                 _candidaturaRepositoryMock.Object,
                 _candidatoRepositoryMock.Object,
                 _vagaRepositoryMock.Object,
+                _dispatcherMock.Object,
                 NullLogger<CancelarCandidaturaHandler>.Instance),
             new ListCandidatosPorVagaHandler(
                 _candidaturaRepositoryMock.Object,

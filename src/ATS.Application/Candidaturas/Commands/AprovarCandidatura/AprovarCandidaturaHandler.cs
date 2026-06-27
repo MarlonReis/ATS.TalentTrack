@@ -1,6 +1,7 @@
 namespace ATS.Application.Candidaturas.Commands.AprovarCandidatura;
 
 using ATS.Application.Candidaturas.DTOs;
+using ATS.Application.Common.Events;
 using ATS.Domain.Candidatos.Repositories;
 using ATS.Domain.Candidaturas.Repositories;
 using ATS.Domain.Shared;
@@ -12,17 +13,20 @@ public sealed partial class AprovarCandidaturaHandler
     private readonly ICandidaturaRepository _candidaturaRepository;
     private readonly ICandidatoRepository _candidatoRepository;
     private readonly IVagaRepository _vagaRepository;
+    private readonly IDomainEventDispatcher _dispatcher;
     private readonly ILogger<AprovarCandidaturaHandler> _logger;
 
     public AprovarCandidaturaHandler(
         ICandidaturaRepository candidaturaRepository,
         ICandidatoRepository candidatoRepository,
         IVagaRepository vagaRepository,
+        IDomainEventDispatcher dispatcher,
         ILogger<AprovarCandidaturaHandler> logger)
     {
         _candidaturaRepository = candidaturaRepository;
         _candidatoRepository = candidatoRepository;
         _vagaRepository = vagaRepository;
+        _dispatcher = dispatcher;
         _logger = logger;
     }
 
@@ -36,6 +40,7 @@ public sealed partial class AprovarCandidaturaHandler
         candidatura.Aprovar(command.Observacoes);
 
         await _candidaturaRepository.AtualizarAsync(candidatura, ct);
+        await _dispatcher.DispatchAndClearAsync(candidatura, ct);
 
         LogCandidaturaAprovada(candidatura.Id, candidatura.CandidatoId, candidatura.VagaId);
 

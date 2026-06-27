@@ -1,4 +1,5 @@
 using ATS.Application.Candidatos.Commands.AddCurriculo;
+using ATS.Application.Common.Events;
 using ATS.Domain.Candidatos.Entities;
 using ATS.Domain.Candidatos.Repositories;
 using ATS.Domain.Shared;
@@ -10,6 +11,7 @@ namespace ATS.Application.Tests.Candidatos;
 public class AddCurriculoHandlerTests
 {
     private readonly Mock<ICandidatoRepository> _repoMock;
+    private readonly Mock<IDomainEventDispatcher> _dispatcherMock;
     private readonly AddCurriculoHandler _handler;
 
     private static readonly Guid _guidCandidato = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
@@ -17,7 +19,14 @@ public class AddCurriculoHandlerTests
     public AddCurriculoHandlerTests()
     {
         _repoMock = new Mock<ICandidatoRepository>(MockBehavior.Strict);
-        _handler = new AddCurriculoHandler(_repoMock.Object, NullLogger<AddCurriculoHandler>.Instance);
+        _dispatcherMock = new Mock<IDomainEventDispatcher>();
+        _dispatcherMock
+            .Setup(d => d.DispatchAndClearAsync(It.IsAny<AggregateRoot>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        _handler = new AddCurriculoHandler(
+            _repoMock.Object,
+            _dispatcherMock.Object,
+            NullLogger<AddCurriculoHandler>.Instance);
     }
 
     private static Candidato CriarCandidato() =>

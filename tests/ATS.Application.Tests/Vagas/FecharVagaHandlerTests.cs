@@ -1,4 +1,5 @@
 
+using ATS.Application.Common.Events;
 using ATS.Application.Vagas.Commands.FecharVaga;
 using ATS.Domain.Shared;
 using ATS.Domain.Vagas.Entities;
@@ -13,13 +14,21 @@ namespace ATS.Application.Tests.Vagas;
 public class FecharVagaHandlerTests
 {
     private readonly Mock<IVagaRepository> _repoMock;
+    private readonly Mock<IDomainEventDispatcher> _dispatcherMock;
     private readonly FecharVagaHandler _handler;
     private static readonly Guid _guidVaga = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
 
     public FecharVagaHandlerTests()
     {
         _repoMock = new Mock<IVagaRepository>(MockBehavior.Strict);
-        _handler = new FecharVagaHandler(_repoMock.Object, NullLogger<FecharVagaHandler>.Instance);
+        _dispatcherMock = new Mock<IDomainEventDispatcher>();
+        _dispatcherMock
+            .Setup(d => d.DispatchAndClearAsync(It.IsAny<AggregateRoot>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        _handler = new FecharVagaHandler(
+            _repoMock.Object,
+            _dispatcherMock.Object,
+            NullLogger<FecharVagaHandler>.Instance);
     }
 
     private static Vaga CriarVagaAberta(string titulo = "Dev Back-end") =>

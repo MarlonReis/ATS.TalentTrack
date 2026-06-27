@@ -1,5 +1,6 @@
 namespace ATS.Application.Vagas.Commands.CreateVaga;
 
+using ATS.Application.Common.Events;
 using ATS.Application.Observability;
 using ATS.Application.Vagas.DTOs;
 using ATS.Domain.Vagas.Entities;
@@ -9,13 +10,16 @@ using Microsoft.Extensions.Logging;
 public sealed partial class CreateVagaHandler
 {
     private readonly IVagaRepository _repository;
+    private readonly IDomainEventDispatcher _dispatcher;
     private readonly ILogger<CreateVagaHandler> _logger;
 
     public CreateVagaHandler(
         IVagaRepository repository,
+        IDomainEventDispatcher dispatcher,
         ILogger<CreateVagaHandler> logger)
     {
         _repository = repository;
+        _dispatcher = dispatcher;
         _logger = logger;
     }
 
@@ -30,6 +34,7 @@ public sealed partial class CreateVagaHandler
               command.Salario);
 
         await _repository.AdicionarAsync(vaga, ct);
+        await _dispatcher.DispatchAndClearAsync(vaga, ct);
 
         AtsMetrics.VagasCriadas.Add(1);
 

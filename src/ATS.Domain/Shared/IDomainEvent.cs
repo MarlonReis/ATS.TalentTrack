@@ -1,3 +1,5 @@
 namespace ATS.Domain.Shared;
 
-public interface IDomainEvent { }
+using MediatR;
+
+public interface IDomainEvent : INotification { }

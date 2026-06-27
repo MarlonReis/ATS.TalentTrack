@@ -1,4 +1,5 @@
 using ATS.Application.Candidatos.Commands.CreateCandidato;
+using ATS.Application.Common.Events;
 using ATS.Domain.Candidatos.Entities;
 using ATS.Domain.Candidatos.Repositories;
 using ATS.Domain.Shared;
@@ -11,12 +12,20 @@ namespace ATS.Application.Tests.Candidatos;
 public class CreateCandidatoHandlerTests
 {
     private readonly Mock<ICandidatoRepository> _repositoryMock;
+    private readonly Mock<IDomainEventDispatcher> _dispatcherMock;
     private readonly CreateCandidatoHandler _handler;
 
     public CreateCandidatoHandlerTests()
     {
         _repositoryMock = new Mock<ICandidatoRepository>(MockBehavior.Strict);
-        _handler = new CreateCandidatoHandler(_repositoryMock.Object, NullLogger<CreateCandidatoHandler>.Instance);
+        _dispatcherMock = new Mock<IDomainEventDispatcher>();
+        _dispatcherMock
+            .Setup(d => d.DispatchAndClearAsync(It.IsAny<AggregateRoot>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        _handler = new CreateCandidatoHandler(
+            _repositoryMock.Object,
+            _dispatcherMock.Object,
+            NullLogger<CreateCandidatoHandler>.Instance);
     }
 
     [Theory]

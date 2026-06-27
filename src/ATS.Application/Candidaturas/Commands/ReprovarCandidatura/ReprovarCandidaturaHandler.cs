@@ -1,6 +1,7 @@
 namespace ATS.Application.Candidaturas.Commands.ReprovarCandidatura;
 
 using ATS.Application.Candidaturas.DTOs;
+using ATS.Application.Common.Events;
 using ATS.Domain.Candidatos.Repositories;
 using ATS.Domain.Candidaturas.Repositories;
 using ATS.Domain.Shared;
@@ -12,17 +13,20 @@ public sealed partial class ReprovarCandidaturaHandler
     private readonly ICandidaturaRepository _candidaturaRepository;
     private readonly ICandidatoRepository _candidatoRepository;
     private readonly IVagaRepository _vagaRepository;
+    private readonly IDomainEventDispatcher _dispatcher;
     private readonly ILogger<ReprovarCandidaturaHandler> _logger;
 
     public ReprovarCandidaturaHandler(
         ICandidaturaRepository candidaturaRepository,
         ICandidatoRepository candidatoRepository,
         IVagaRepository vagaRepository,
+        IDomainEventDispatcher dispatcher,
         ILogger<ReprovarCandidaturaHandler> logger)
     {
         _candidaturaRepository = candidaturaRepository;
         _candidatoRepository = candidatoRepository;
         _vagaRepository = vagaRepository;
+        _dispatcher = dispatcher;
         _logger = logger;
     }
 
@@ -36,6 +40,7 @@ public sealed partial class ReprovarCandidaturaHandler
         candidatura.Reprovar(command.Observacoes);
 
         await _candidaturaRepository.AtualizarAsync(candidatura, ct);
+        await _dispatcher.DispatchAndClearAsync(candidatura, ct);
 
         LogCandidaturaReprovada(candidatura.Id, candidatura.CandidatoId, candidatura.VagaId);
 

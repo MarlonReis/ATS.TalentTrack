@@ -1,4 +1,5 @@
 using ATS.Application.Candidaturas.Commands.AprovarCandidatura;
+using ATS.Application.Common.Events;
 using ATS.Domain.Candidatos.Entities;
 using ATS.Domain.Candidatos.Repositories;
 using ATS.Domain.Candidaturas.Entities;
@@ -17,6 +18,7 @@ public class AprovarCandidaturaHandlerTests
     private readonly Mock<ICandidaturaRepository> _candidaturaRepoMock;
     private readonly Mock<ICandidatoRepository> _candidatoRepoMock;
     private readonly Mock<IVagaRepository> _vagaRepoMock;
+    private readonly Mock<IDomainEventDispatcher> _dispatcherMock;
     private readonly AprovarCandidaturaHandler _handler;
 
     private static readonly Guid _guidCandidatura = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
@@ -28,10 +30,15 @@ public class AprovarCandidaturaHandlerTests
         _candidaturaRepoMock = new Mock<ICandidaturaRepository>(MockBehavior.Strict);
         _candidatoRepoMock = new Mock<ICandidatoRepository>(MockBehavior.Strict);
         _vagaRepoMock = new Mock<IVagaRepository>(MockBehavior.Strict);
+        _dispatcherMock = new Mock<IDomainEventDispatcher>();
+        _dispatcherMock
+            .Setup(d => d.DispatchAndClearAsync(It.IsAny<AggregateRoot>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
         _handler = new AprovarCandidaturaHandler(
             _candidaturaRepoMock.Object,
             _candidatoRepoMock.Object,
             _vagaRepoMock.Object,
+            _dispatcherMock.Object,
             NullLogger<AprovarCandidaturaHandler>.Instance);
     }
 
