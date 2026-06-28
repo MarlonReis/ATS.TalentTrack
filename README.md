@@ -1697,11 +1697,11 @@ Consulte o [docs/bdd/README.md](docs/bdd/README.md) para convenções de escrita
 Melhorias planejadas para versões futuras:
 
 - [ ] **Autenticação e autorização** — JWT Bearer com roles (Recrutador, Admin)
-- [ ] **Criação explícita de índices MongoDB** — índice em `Email.Value` para unicidade de candidatos, índice composto em `CandidatoId + VagaId` para candidaturas
-- [ ] **Paginação com cursor** — substituir paginação por offset por paginação baseada em cursor para melhor performance em grandes volumes
+- [x] **Criação explícita de índices MongoDB** — índice em `Email.Value` para unicidade de candidatos, índice composto em `CandidatoId + VagaId` para candidaturas
+- [x] **Paginação com cursor** — substituir paginação por offset por paginação baseada em cursor para melhor performance em grandes volumes
 - [ ] **Outbox e mensageria para eventos de domínio** — persistir eventos e publicar em RabbitMQ / Azure Service Bus com retry e rastreabilidade
-- [ ] **FluentValidation** — validação declarativa de Commands com mensagens de erro detalhadas
-- [ ] **Rate limiting** — throttling por IP/usuário nas rotas públicas
+- [x] **FluentValidation** — validação declarativa de Commands com mensagens de erro detalhadas
+- [x] **Rate limiting** — throttling por IP/usuário nas rotas públicas
 - [ ] **Audit log** — registro imutável de todas as transições de estado das candidaturas
 - [ ] **Dashboard Grafana** — dashboards pré-configurados para as métricas `ats.*`
 - [ ] **Multi-tenancy** — isolamento de dados por empresa/cliente

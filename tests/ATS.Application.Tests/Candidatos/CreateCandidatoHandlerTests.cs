@@ -1,5 +1,6 @@
 using ATS.Application.Candidatos.Commands.CreateCandidato;
 using ATS.Application.Common.Events;
+using ATS.Application.Common.Validation;
 using ATS.Domain.Candidatos.Entities;
 using ATS.Domain.Candidatos.Repositories;
 using ATS.Domain.Shared;
@@ -25,6 +26,7 @@ public class CreateCandidatoHandlerTests
         _handler = new CreateCandidatoHandler(
             _repositoryMock.Object,
             _dispatcherMock.Object,
+            new CreateCandidatoCommandValidator(),
             NullLogger<CreateCandidatoHandler>.Instance);
     }
 
@@ -267,5 +269,22 @@ public class CreateCandidatoHandlerTests
 
         _repositoryMock.Verify(r => r.ObterPorEmailAsync(email, It.IsAny<CancellationToken>()), Times.Once);
         _repositoryMock.Verify(r => r.AdicionarAsync(It.IsAny<Candidato>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Theory]
+    [InlineData("", "email@example.com", "11999990000")]
+    [InlineData("Nome", "", "11999990000")]
+    [InlineData("Nome", "invalido", "11999990000")]
+    [InlineData("Nome", "email@example.com", "")]
+    public async Task DeveLancarValidationExceptionQuandoComandoForInvalido(
+        string nome, string email, string telefone)
+    {
+        var ex = await Assert.ThrowsAsync<ValidationException>(
+            () => _handler.HandleAsync(new CreateCandidatoCommand(nome, email, telefone)));
+
+        Assert.NotEmpty(ex.Errors);
+        _repositoryMock.Verify(
+            r => r.AdicionarAsync(It.IsAny<Candidato>(), It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 }

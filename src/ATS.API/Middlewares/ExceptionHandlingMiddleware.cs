@@ -1,6 +1,7 @@
 namespace ATS.API.Middlewares;
 
 using System.Text.Json;
+using ATS.Application.Common.Validation;
 using ATS.Domain.Shared;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
@@ -43,9 +44,36 @@ public sealed partial class ExceptionHandlingMiddleware
         {
             LogDomainException(method, path, statusCode, traceId, exception);
         }
-        else
+        else if (exception is not ValidationException)
         {
             LogUnexpectedException(method, path, statusCode, traceId, exception);
+        }
+
+        context.Response.Clear();
+        context.Response.StatusCode = statusCode;
+        context.Response.ContentType = "application/problem+json";
+
+        if (exception is ValidationException validationEx)
+        {
+            var errors = validationEx.Errors
+                .GroupBy(e => e.PropertyName)
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.Select(e => e.ErrorMessage).ToArray());
+
+            var validationProblem = new ValidationProblemDetails(errors)
+            {
+                Status = statusCode,
+                Title = "Um ou mais erros de validação ocorreram.",
+                Instance = context.Request.Path
+            };
+            validationProblem.Extensions["traceId"] = traceId;
+
+            await context.Response.WriteAsync(
+                JsonSerializer.Serialize(validationProblem, _jsonOptions),
+                context.RequestAborted);
+
+            return;
         }
 
         var problem = new ProblemDetails
@@ -58,10 +86,6 @@ public sealed partial class ExceptionHandlingMiddleware
 
         problem.Extensions["traceId"] = traceId;
 
-        context.Response.Clear();
-        context.Response.StatusCode = statusCode;
-        context.Response.ContentType = "application/problem+json";
-
         await context.Response.WriteAsync(
             JsonSerializer.Serialize(problem, _jsonOptions),
             context.RequestAborted);
@@ -70,6 +94,7 @@ public sealed partial class ExceptionHandlingMiddleware
     private static int ResolveStatusCode(Exception exception) =>
         exception switch
         {
+            ValidationException => StatusCodes.Status400BadRequest,
             DomainException domainException => ResolveDomainStatusCode(domainException.Message),
             BadHttpRequestException => StatusCodes.Status400BadRequest,
             ArgumentException => StatusCodes.Status400BadRequest,

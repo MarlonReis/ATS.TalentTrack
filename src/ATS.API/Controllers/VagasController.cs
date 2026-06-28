@@ -11,6 +11,7 @@ using ATS.Application.Vagas.Queries.GetVagaById;
 using ATS.Application.Vagas.Queries.ListVagas;
 using ATS.Domain.Vagas.Enums;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 [ApiController]
 [Route("api/v1/vagas")]
@@ -19,6 +20,7 @@ public sealed class VagasController : ControllerBase
     private readonly CreateVagaHandler _createHandler;
     private readonly GetVagaByIdHandler _getByIdHandler;
     private readonly ListVagasHandler _listHandler;
+    private readonly ListVagasComCursorHandler _listComCursorHandler;
     private readonly UpdateVagaHandler _updateHandler;
     private readonly DeleteVagaHandler _deleteHandler;
     private readonly FecharVagaHandler _fecharHandler;
@@ -27,6 +29,7 @@ public sealed class VagasController : ControllerBase
         CreateVagaHandler createHandler,
         GetVagaByIdHandler getByIdHandler,
         ListVagasHandler listHandler,
+        ListVagasComCursorHandler listComCursorHandler,
         UpdateVagaHandler updateHandler,
         DeleteVagaHandler deleteHandler,
         FecharVagaHandler fecharHandler)
@@ -34,14 +37,17 @@ public sealed class VagasController : ControllerBase
         _createHandler = createHandler;
         _getByIdHandler = getByIdHandler;
         _listHandler = listHandler;
+        _listComCursorHandler = listComCursorHandler;
         _updateHandler = updateHandler;
         _deleteHandler = deleteHandler;
         _fecharHandler = fecharHandler;
     }
 
     [HttpPost]
+    [EnableRateLimiting("escrita")]
     [ProducesResponseType(typeof(VagaDto), 201)]
     [ProducesResponseType(400)]
+    [ProducesResponseType(429)]
     public async Task<ActionResult<VagaDto>> Criar(
         [FromBody] CreateVagaCommand command,
         CancellationToken ct = default)
@@ -51,8 +57,10 @@ public sealed class VagasController : ControllerBase
     }
 
     [HttpGet("{id:guid}")]
+    [EnableRateLimiting("leitura")]
     [ProducesResponseType(typeof(VagaDto), 200)]
     [ProducesResponseType(404)]
+    [ProducesResponseType(429)]
     public async Task<ActionResult<VagaDto>> ObterPorId(
         Guid id,
         CancellationToken ct = default)
@@ -65,8 +73,10 @@ public sealed class VagasController : ControllerBase
     }
 
     [HttpGet]
+    [EnableRateLimiting("leitura")]
     [ProducesResponseType(typeof(PagedResult<VagaDto>), 200)]
     [ProducesResponseType(400)]
+    [ProducesResponseType(429)]
     public async Task<ActionResult<PagedResult<VagaDto>>> Listar(
         [FromQuery] int pagina = 1,
         [FromQuery] int tamanhoPagina = 20,
@@ -80,11 +90,35 @@ public sealed class VagasController : ControllerBase
         return Ok(resultado);
     }
 
+    /// <summary>
+    /// Lista vagas usando paginação por cursor.
+    /// Passe o valor de <c>proximoCursor</c> retornado na resposta anterior como parâmetro <c>cursor</c>.
+    /// </summary>
+    [HttpGet("cursor")]
+    [EnableRateLimiting("leitura")]
+    [ProducesResponseType(typeof(CursorPagedResult<VagaDto>), 200)]
+    [ProducesResponseType(400)]
+    [ProducesResponseType(429)]
+    public async Task<ActionResult<CursorPagedResult<VagaDto>>> ListarComCursor(
+        [FromQuery] string? cursor = null,
+        [FromQuery] int limite = 20,
+        [FromQuery] StatusVaga? status = null,
+        CancellationToken ct = default)
+    {
+        var resultado = await _listComCursorHandler.HandleAsync(
+            new ListVagasComCursorQuery(cursor, limite, status),
+            ct);
+
+        return Ok(resultado);
+    }
+
     [HttpPut("{id:guid}")]
+    [EnableRateLimiting("escrita")]
     [ProducesResponseType(typeof(VagaDto), 200)]
     [ProducesResponseType(400)]
     [ProducesResponseType(404)]
     [ProducesResponseType(409)]
+    [ProducesResponseType(429)]
     public async Task<ActionResult<VagaDto>> Atualizar(
         Guid id,
         [FromBody] AtualizarVagaRequest request,
@@ -103,9 +137,11 @@ public sealed class VagasController : ControllerBase
     }
 
     [HttpPatch("{id:guid}/fechar")]
+    [EnableRateLimiting("escrita")]
     [ProducesResponseType(typeof(VagaDto), 200)]
     [ProducesResponseType(404)]
     [ProducesResponseType(409)]
+    [ProducesResponseType(429)]
     public async Task<ActionResult<VagaDto>> Fechar(
         Guid id,
         CancellationToken ct = default)
@@ -115,8 +151,10 @@ public sealed class VagasController : ControllerBase
     }
 
     [HttpDelete("{id:guid}")]
+    [EnableRateLimiting("escrita")]
     [ProducesResponseType(204)]
     [ProducesResponseType(404)]
+    [ProducesResponseType(429)]
     public async Task<IActionResult> Remover(
         Guid id,
         CancellationToken ct = default)

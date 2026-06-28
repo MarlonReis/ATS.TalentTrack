@@ -9,7 +9,6 @@ namespace ATS.Infrastructure.Tests.Persistence.Repositories;
 public class CandidaturaRepositoryTests
 {
     private readonly Mock<IMongoCollection<Candidatura>> _collectionMock;
-    private readonly Mock<IMongoIndexManager<Candidatura>> _indexManagerMock;
     private readonly CandidaturaRepository _repository;
 
     public CandidaturaRepositoryTests()
@@ -18,62 +17,29 @@ public class CandidaturaRepositoryTests
 
         var contextMock = new Mock<IMongoDbContext>(MockBehavior.Strict);
         _collectionMock = new Mock<IMongoCollection<Candidatura>>(MockBehavior.Strict);
-        _indexManagerMock = new Mock<IMongoIndexManager<Candidatura>>(MockBehavior.Strict);
-
-        _collectionMock
-            .SetupGet(collection => collection.Indexes)
-            .Returns(_indexManagerMock.Object);
 
         contextMock
             .Setup(context => context.GetCollection<Candidatura>("candidaturas"))
             .Returns(_collectionMock.Object);
 
-        _indexManagerMock
-            .Setup(indexes => indexes.CreateOne(
-                It.IsAny<CreateIndexModel<Candidatura>>(),
-                It.IsAny<CreateOneIndexOptions>(),
-                It.IsAny<CancellationToken>()))
-            .Returns("candidatoId_1_vagaId_1");
-
         _repository = new CandidaturaRepository(contextMock.Object);
     }
 
     [Fact]
-    public void DeveObterCollectionCandidaturasECriarIndiceUnicoPorCandidatoEVaga()
+    public void DeveBuscarCollectionCandidaturasNoConstrutor()
     {
-        CreateIndexModel<Candidatura>? indexModel = null;
         var contextMock = new Mock<IMongoDbContext>(MockBehavior.Strict);
         var collectionMock = new Mock<IMongoCollection<Candidatura>>(MockBehavior.Strict);
-        var indexManagerMock = new Mock<IMongoIndexManager<Candidatura>>(MockBehavior.Strict);
-
-        collectionMock
-            .SetupGet(collection => collection.Indexes)
-            .Returns(indexManagerMock.Object);
 
         contextMock
             .Setup(context => context.GetCollection<Candidatura>("candidaturas"))
             .Returns(collectionMock.Object);
 
-        indexManagerMock
-            .Setup(indexes => indexes.CreateOne(
-                It.IsAny<CreateIndexModel<Candidatura>>(),
-                It.IsAny<CreateOneIndexOptions>(),
-                It.IsAny<CancellationToken>()))
-            .Callback<CreateIndexModel<Candidatura>, CreateOneIndexOptions, CancellationToken>(
-                (model, _, _) => indexModel = model)
-            .Returns("candidatoId_1_vagaId_1");
-
         _ = new CandidaturaRepository(contextMock.Object);
 
         contextMock.Verify(context => context.GetCollection<Candidatura>("candidaturas"), Times.Once);
-        Assert.NotNull(indexModel);
-        Assert.True(indexModel.Options.Unique);
-
-        var keys = MongoRepositoryTestHelpers.Render(indexModel.Keys);
-
-        Assert.Equal(2, keys.ElementCount);
-        Assert.Equal(1, keys["candidatoId"].AsInt32);
-        Assert.Equal(1, keys["vagaId"].AsInt32);
+        // Índices são criados pelo MongoIndexInitializer (IHostedService), não no construtor
+        collectionMock.VerifyNoOtherCalls();
     }
 
     [Fact]

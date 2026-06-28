@@ -9,6 +9,7 @@ using ATS.Application.Candidatos.Queries.GetCandidatoById;
 using ATS.Application.Candidatos.Queries.ListCandidatos;
 using ATS.Application.Common.Events;
 using ATS.Application.Common.Pagination;
+using ATS.Application.Vagas.Queries.ListVagas;
 using ATS.Domain.Candidatos.Entities;
 using ATS.Domain.Candidatos.Repositories;
 using ATS.Domain.Shared;
@@ -33,10 +34,11 @@ public class CandidatosControllerTests
             .Returns(Task.CompletedTask);
 
         _controller = new CandidatosController(
-            new CreateCandidatoHandler(_candidatoRepositoryMock.Object, _dispatcherMock.Object, NullLogger<CreateCandidatoHandler>.Instance),
+            new CreateCandidatoHandler(_candidatoRepositoryMock.Object, _dispatcherMock.Object, new CreateCandidatoCommandValidator(), NullLogger<CreateCandidatoHandler>.Instance),
             new GetCandidatoByIdHandler(_candidatoRepositoryMock.Object),
             new ListCandidatosHandler(_candidatoRepositoryMock.Object),
-            new UpdateCandidatoHandler(_candidatoRepositoryMock.Object, _dispatcherMock.Object, NullLogger<UpdateCandidatoHandler>.Instance),
+            new ListCandidatosComCursorHandler(_candidatoRepositoryMock.Object),
+            new UpdateCandidatoHandler(_candidatoRepositoryMock.Object, _dispatcherMock.Object, new UpdateCandidatoCommandValidator(), NullLogger<UpdateCandidatoHandler>.Instance),
             new DeleteCandidatoHandler(_candidatoRepositoryMock.Object, NullLogger<DeleteCandidatoHandler>.Instance),
             new AddCurriculoHandler(_candidatoRepositoryMock.Object, _dispatcherMock.Object, NullLogger<AddCurriculoHandler>.Instance));
     }

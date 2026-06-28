@@ -1,4 +1,5 @@
 using ATS.Application.Common.Events;
+using ATS.Application.Common.Validation;
 using ATS.Application.Vagas.Commands.CreateVaga;
 using ATS.Domain.Shared;
 using ATS.Domain.Vagas.Entities;
@@ -26,6 +27,7 @@ public class CreateVagaHandlerTests
         _handler = new CreateVagaHandler(
             _repoMock.Object,
             _dispatcherMock.Object,
+            new CreateVagaCommandValidator(),
             NullLogger<CreateVagaHandler>.Instance);
     }
 
@@ -120,15 +122,14 @@ public class CreateVagaHandlerTests
     [Theory]
     [InlineData("", "Descrição", "Req", 10000)]
     [InlineData("   ", "Descrição", "Req", 10000)]
-    public async Task DevePropagrarExcecaoDeDominioQuandoTituloForVazio(
+    public async Task DeveRetornarValidationExceptionQuandoTituloForVazio(
         string titulo, string descricao, string requisitos, decimal salario)
     {
-
-        var excecao = await Assert.ThrowsAsync<DomainException>(
+        var excecao = await Assert.ThrowsAsync<ValidationException>(
             () => _handler.HandleAsync(
                 new CreateVagaCommand(titulo, descricao, requisitos, salario)));
 
-        Assert.Equal("Título da vaga é obrigatório.", excecao.Message);
+        Assert.Contains(excecao.Errors, e => e.PropertyName == "Titulo");
         _repoMock.Verify(
             r => r.AdicionarAsync(It.IsAny<Vaga>(), It.IsAny<CancellationToken>()),
             Times.Never);

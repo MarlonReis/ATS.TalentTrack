@@ -1,6 +1,7 @@
 using ATS.Domain.Vagas.Entities;
 using ATS.Infrastructure.Persistence.Context;
 using ATS.Infrastructure.Persistence.Repositories;
+using MongoDB.Bson;
 using MongoDB.Driver;
 using Moq;
 
@@ -187,6 +188,56 @@ public class VagaRepositoryTests
             .Callback<FilterDefinition<Vaga>, FindOptions<Vaga, Vaga>, CancellationToken>(
                 (filter, options, ct) => callback?.Invoke(filter, options, ct))
             .ReturnsAsync(MongoRepositoryTestHelpers.CriarCursor(vagas));
+    }
+
+    [Fact]
+    public async Task ListarComCursorAsyncSemAfterIdDeveUsarFiltroVazio()
+    {
+        var vagas = new[] { CriarVaga("Dev 1"), CriarVaga("Dev 2") };
+        var ct = new CancellationTokenSource().Token;
+        FilterDefinition<Vaga>? filter = null;
+        FindOptions<Vaga, Vaga>? options = null;
+
+        SetupFindAsync(vagas, (f, o, _) => { filter = f; options = o; });
+
+        var resultado = await _repository.ListarComCursorAsync(null, 10, ct);
+
+        Assert.Equal(vagas, resultado);
+        Assert.NotNull(filter);
+        Assert.Empty(MongoRepositoryTestHelpers.Render(filter));
+        Assert.NotNull(options);
+        Assert.Equal(10, options.Limit);
+        // Sort deve ser ascendente por _id
+        var sortDoc = options.Sort!.Render(MongoRepositoryTestHelpers.CriarRenderArgs<Vaga>());
+        Assert.Equal(1, sortDoc["_id"].AsInt32);
+    }
+
+    [Fact]
+    public async Task ListarComCursorAsyncComAfterIdDeveUsarFiltroCom_Gt()
+    {
+        var afterId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+        var vagas = new[] { CriarVaga("Dev 3") };
+        var ct = new CancellationTokenSource().Token;
+        FilterDefinition<Vaga>? filter = null;
+        FindOptions<Vaga, Vaga>? options = null;
+
+        SetupFindAsync(vagas, (f, o, _) => { filter = f; options = o; });
+
+        var resultado = await _repository.ListarComCursorAsync(afterId, 5, ct);
+
+        Assert.Equal(vagas, resultado);
+        Assert.NotNull(filter);
+
+        var rendered = MongoRepositoryTestHelpers.Render(filter);
+        var element = Assert.Single(rendered.Elements);
+        Assert.Equal("_id", element.Name);
+        var gtDoc = element.Value.AsBsonDocument;
+        Assert.Equal(afterId, gtDoc["$gt"].AsGuid);
+
+        Assert.NotNull(options);
+        Assert.Equal(5, options.Limit);
+        var sortDoc = options.Sort!.Render(MongoRepositoryTestHelpers.CriarRenderArgs<Vaga>());
+        Assert.Equal(1, sortDoc["_id"].AsInt32);
     }
 
     private static Vaga CriarVaga(string titulo = "Desenvolvedor Back-end") =>

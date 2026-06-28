@@ -27,7 +27,9 @@ using ATS.Domain.Vagas.Repositories;
 using ATS.Infrastructure.Events;
 using ATS.Infrastructure.Health;
 using ATS.Infrastructure.Persistence.Context;
+using ATS.Infrastructure.Persistence.Indexes;
 using ATS.Infrastructure.Persistence.Repositories;
+using FluentValidation;
 using MediatR;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -44,8 +46,12 @@ public static class DependencyInjection
             cfg.RegisterServicesFromAssembly(typeof(AuditoriaCandidaturaHandler).Assembly));
         services.AddScoped<IDomainEventDispatcher, MediatRDomainEventDispatcher>();
 
-        // ── MongoDB ──────────────────────────────────────────────────────────
+        // ── FluentValidation ──────────────────────────────────────────────────
+        services.AddValidatorsFromAssembly(typeof(CreateCandidatoHandler).Assembly);
+
+        // ── MongoDB + Índices ─────────────────────────────────────────────────
         services.AddMongoDb(configuration);
+        services.AddHostedService<MongoIndexInitializer>();
 
         // ── Repositórios ──────────────────────────────────────────────────────
         services.AddScoped<ICandidatoRepository, CandidatoRepository>();
@@ -58,13 +64,12 @@ public static class DependencyInjection
         services.AddScoped<DeleteVagaHandler>();
         services.AddScoped<FecharVagaHandler>();
 
-
         // ── Vagas – Queries ───────────────────────────────────────────────────
         services.AddScoped<GetVagaByIdHandler>();
         services.AddScoped<ListVagasHandler>();
+        services.AddScoped<ListVagasComCursorHandler>();
 
         // ── Candidatos – Commands ─────────────────────────────────────────────
-
         services.AddScoped<CreateCandidatoHandler>();
         services.AddScoped<UpdateCandidatoHandler>();
         services.AddScoped<DeleteCandidatoHandler>();
@@ -73,6 +78,7 @@ public static class DependencyInjection
         // ── Candidatos – Queries ──────────────────────────────────────────────
         services.AddScoped<GetCandidatoByIdHandler>();
         services.AddScoped<ListCandidatosHandler>();
+        services.AddScoped<ListCandidatosComCursorHandler>();
 
         // ── Candidaturas – Commands ───────────────────────────────────────────
         services.AddScoped<CandidatarSeHandler>();

@@ -15,14 +15,6 @@ public sealed class CandidaturaRepository : ICandidaturaRepository
     public CandidaturaRepository(IMongoDbContext context)
     {
         _collection = context.GetCollection<Candidatura>("candidaturas");
-
-        var indexModel = new CreateIndexModel<Candidatura>(
-            Builders<Candidatura>.IndexKeys
-                .Ascending(_candidatoIdField)
-                .Ascending(_vagaIdField),
-            new CreateIndexOptions { Unique = true });
-
-        _collection.Indexes.CreateOne(indexModel);
     }
 
     public async Task<Candidatura?> ObterPorIdAsync(Guid id, CancellationToken ct = default) =>
