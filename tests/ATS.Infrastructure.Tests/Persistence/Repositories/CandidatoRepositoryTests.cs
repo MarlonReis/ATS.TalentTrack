@@ -12,7 +12,7 @@ public class CandidatoRepositoryTests
 {
     private readonly Mock<IMongoDbContext> _contextMock;
     private readonly Mock<IMongoCollection<Candidato>> _collectionMock;
-    private readonly Mock<IMongoIndexManager<Candidato>> _indexManagerMock;
+
     private readonly CandidatoRepository _repository;
 
     public CandidatoRepositoryTests()
@@ -21,68 +21,29 @@ public class CandidatoRepositoryTests
 
         _contextMock = new Mock<IMongoDbContext>(MockBehavior.Strict);
         _collectionMock = new Mock<IMongoCollection<Candidato>>(MockBehavior.Strict);
-        _indexManagerMock = new Mock<IMongoIndexManager<Candidato>>(MockBehavior.Strict);
-
-        _collectionMock
-            .SetupGet(c => c.Indexes)
-            .Returns(_indexManagerMock.Object);
 
         _contextMock
             .Setup(c => c.GetCollection<Candidato>("candidatos"))
             .Returns(_collectionMock.Object);
 
-        _indexManagerMock
-            .Setup(i => i.CreateOne(
-                It.IsAny<CreateIndexModel<Candidato>>(),
-                It.IsAny<CreateOneIndexOptions>(),
-                It.IsAny<CancellationToken>()))
-            .Returns("email_1");
-
         _repository = new CandidatoRepository(_contextMock.Object);
     }
 
     [Fact]
-    public void DeveObterCollectionCandidatosECriarIndiceUnicoPorEmailNoConstrutor()
+    public void DeveBuscarCollectionCandidatosNoConstrutor()
     {
-        CreateIndexModel<Candidato>? indexModel = null;
         var contextMock = new Mock<IMongoDbContext>(MockBehavior.Strict);
         var collectionMock = new Mock<IMongoCollection<Candidato>>(MockBehavior.Strict);
-        var indexManagerMock = new Mock<IMongoIndexManager<Candidato>>(MockBehavior.Strict);
-
-        collectionMock
-            .SetupGet(c => c.Indexes)
-            .Returns(indexManagerMock.Object);
 
         contextMock
             .Setup(c => c.GetCollection<Candidato>("candidatos"))
             .Returns(collectionMock.Object);
 
-        indexManagerMock
-            .Setup(i => i.CreateOne(
-                It.IsAny<CreateIndexModel<Candidato>>(),
-                It.IsAny<CreateOneIndexOptions>(),
-                It.IsAny<CancellationToken>()))
-            .Callback<CreateIndexModel<Candidato>, CreateOneIndexOptions, CancellationToken>(
-                (model, _, _) => indexModel = model)
-            .Returns("email_1");
-
         _ = new CandidatoRepository(contextMock.Object);
 
         contextMock.Verify(c => c.GetCollection<Candidato>("candidatos"), Times.Once);
-        indexManagerMock.Verify(
-            i => i.CreateOne(
-                It.IsAny<CreateIndexModel<Candidato>>(),
-                It.IsAny<CreateOneIndexOptions>(),
-                It.IsAny<CancellationToken>()),
-            Times.Once);
-
-        Assert.NotNull(indexModel);
-        Assert.True(indexModel.Options.Unique);
-
-        var indexKeys = Render(indexModel.Keys);
-        var key = Assert.Single(indexKeys.Elements);
-        Assert.Equal("email.value", key.Name.ToLowerInvariant());
-        Assert.Equal(1, key.Value.AsInt32);
+        // Índices são criados pelo MongoIndexInitializer (IHostedService), não no construtor
+        collectionMock.VerifyNoOtherCalls();
     }
 
     [Fact]
@@ -286,6 +247,56 @@ public class CandidatoRepositoryTests
             .Returns(lote);
 
         return cursorMock.Object;
+    }
+
+    [Fact]
+    public async Task ListarComCursorAsyncSemAfterIdDeveUsarFiltroVazio()
+    {
+        var candidatos = new[] { CriarCandidato("Maria", "maria@ex.com"), CriarCandidato("João", "joao@ex.com") };
+        var ct = new CancellationTokenSource().Token;
+        FilterDefinition<Candidato>? filter = null;
+        FindOptions<Candidato, Candidato>? options = null;
+
+        SetupFindAsync(candidatos, (f, o, _) => { filter = f; options = o; });
+
+        var resultado = await _repository.ListarComCursorAsync(null, 10, ct);
+
+        Assert.Equal(candidatos, resultado);
+        Assert.NotNull(filter);
+        Assert.Empty(Render(filter));
+        Assert.NotNull(options);
+        Assert.Equal(10, options.Limit);
+        // Sort ascendente por _id
+        var sortDoc = options.Sort!.Render(CriarRenderArgs());
+        Assert.Equal(1, sortDoc["_id"].AsInt32);
+    }
+
+    [Fact]
+    public async Task ListarComCursorAsyncComAfterIdDeveUsarFiltroCom_Gt()
+    {
+        var afterId = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
+        var candidatos = new[] { CriarCandidato("Pedro", "pedro@ex.com") };
+        var ct = new CancellationTokenSource().Token;
+        FilterDefinition<Candidato>? filter = null;
+        FindOptions<Candidato, Candidato>? options = null;
+
+        SetupFindAsync(candidatos, (f, o, _) => { filter = f; options = o; });
+
+        var resultado = await _repository.ListarComCursorAsync(afterId, 5, ct);
+
+        Assert.Equal(candidatos, resultado);
+        Assert.NotNull(filter);
+
+        var rendered = Render(filter);
+        var element = Assert.Single(rendered.Elements);
+        Assert.Equal("_id", element.Name);
+        var gtDoc = element.Value.AsBsonDocument;
+        Assert.Equal(afterId, gtDoc["$gt"].AsGuid);
+
+        Assert.NotNull(options);
+        Assert.Equal(5, options.Limit);
+        var sortDoc = options.Sort!.Render(CriarRenderArgs());
+        Assert.Equal(1, sortDoc["_id"].AsInt32);
     }
 
     private static Candidato CriarCandidato(

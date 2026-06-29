@@ -7,10 +7,10 @@
 [![BDD](https://img.shields.io/badge/BDD-Gherkin-brightgreen?style=flat-square)](docs/bdd/README.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![CI](https://github.com/MarlonReis/ATS.TalentTrack/actions/workflows/ci.yml/badge.svg)](https://github.com/MarlonReis/ATS.TalentTrack/actions/workflows/ci.yml)
-![Testes](https://img.shields.io/badge/testes-645%20passing-brightgreen?style=flat-square)
-![Testes unitarios](https://img.shields.io/badge/unit%20tests-594-brightgreen?style=flat-square)
-![Testes E2E](https://img.shields.io/badge/e2e%20tests-51-blue?style=flat-square)
-![Cobertura de testes](https://img.shields.io/badge/cobertura-98.2%25-brightgreen?style=flat-square)
+![Testes](https://img.shields.io/badge/testes-911%20passing-brightgreen?style=flat-square)
+![Testes unitarios](https://img.shields.io/badge/unit%20tests-856-brightgreen?style=flat-square)
+![Testes E2E](https://img.shields.io/badge/e2e%20tests-55-blue?style=flat-square)
+![Cobertura de testes](https://img.shields.io/badge/cobertura-99%25-brightgreen?style=flat-square)
 ![Vulnerabilidades](https://img.shields.io/badge/vulnerabilidades-0-brightgreen?style=flat-square)
 ![Issues](https://img.shields.io/github/issues/MarlonReis/ATS.TalentTrack?style=flat-square)
 
@@ -61,9 +61,12 @@ O ATS é um sistema de rastreamento de candidatos (Applicant Tracking System) de
 
 | Área | Operações |
 |------|-----------|
-| **Candidatos** | Cadastro, consulta, listagem paginada, atualização de contato, upload de currículo |
-| **Vagas** | Publicação, consulta, listagem paginada, atualização, encerramento, exclusão |
+| **Candidatos** | Cadastro, consulta, listagem paginada, listagem com cursor, atualização de contato, upload de currículo |
+| **Vagas** | Publicação, consulta, listagem paginada, listagem com cursor (+ filtro por status), atualização, encerramento, exclusão |
 | **Candidaturas** | Criação, consulta, listagem por vaga, aprovação, reprovação, cancelamento |
+| **Validação** | FluentValidation em Commands e Requests HTTP — retorna `400 application/problem+json` com erros por campo |
+| **Rate limiting** | Throttling por IP: 30 req/min para escrita, 120 req/min para leitura — responde `429 Too Many Requests` |
+| **Índices MongoDB** | Criação idempotente de índices ao iniciar a aplicação via `IHostedService` (resiliente a falhas de autenticação) |
 | **Eventos de domínio** | Dispatch interno via MediatR, auditoria, notificações por log e automações pós-evento |
 | **Observabilidade** | Logs estruturados (JSON), tracing distribuído (OTLP/Jaeger), métricas Prometheus, health checks |
 
@@ -79,7 +82,9 @@ O ATS é um sistema de rastreamento de candidatos (Applicant Tracking System) de
 | Eventos internos | [MediatR](https://github.com/jbogard/MediatR) para publicação de eventos de domínio |
 | Tracing | [OpenTelemetry](https://opentelemetry.io) (OTLP exporter, Jaeger) |
 | Métricas | OpenTelemetry Metrics + [Prometheus](https://prometheus.io) |
-| Testes | [xUnit](https://xunit.net) + [Moq](https://github.com/moq/moq4) |
+| Validação | [FluentValidation 12](https://docs.fluentvalidation.net) — validators de Commands e Requests |
+| Rate Limiting | ASP.NET Core Rate Limiting (`AddRateLimiter`) — políticas por IP com janela fixa |
+| Testes | [xUnit](https://xunit.net) + [Moq](https://github.com/moq/moq4) + [Testcontainers](https://testcontainers.com) |
 | Cobertura | [Coverlet](https://github.com/coverlet-coverage/coverlet) + [ReportGenerator](https://github.com/danielpalme/ReportGenerator) |
 | Containerização | [Docker](https://www.docker.com) + Docker Compose |
 | CI | [GitHub Actions](https://github.com/features/actions) |
@@ -127,25 +132,31 @@ O projeto segue a arquitetura em camadas do **Domain-Driven Design (DDD)**, com 
 - Handlers de Commands (operações de escrita) e Queries (operações de leitura) por agregado
 - Event handlers MediatR para auditoria, notificações e automações internas pós-evento
 - `IDomainEventDispatcher` como contrato de publicação e limpeza de eventos dos agregados
-- DTOs para projeção de dados entre camadas
-- `PagedResult<T>` para respostas paginadas
+- DTOs para projeção de dados entre camadas — incluindo `CurriculoDto` embutido em `CandidatoDto`
+- `PagedResult<T>` para paginação por offset; `CursorPagedResult<T>` para paginação por cursor
+- Validators FluentValidation de Commands (`CreateCandidatoCommandValidator`, `UpdateCandidatoCommandValidator`, `CandidatarSeCommandValidator`, `CreateVagaCommandValidator`, `UpdateVagaCommandValidator`)
+- `ValidationException` (em `Common.Validation`) lançada pelos handlers quando a validação falha
 - `AtsMetrics` com contadores OpenTelemetry para métricas de negócio
 - Sem referência a frameworks web ou de persistência
 
 **`ATS.Infrastructure`** — implementações de infraestrutura.
-- Implementações concretas dos repositórios usando `MongoDB.Driver`
+- Implementações concretas dos repositórios usando `MongoDB.Driver` — incluindo `ListarComCursorAsync` para paginação por cursor
 - `MongoDbContext` e mapeamento BSON via `BsonClassMap`
 - `MediatRDomainEventDispatcher` para publicar `IDomainEvent` e limpar a fila do agregado
+- `MongoIndexInitializer` (`IHostedService`) — cria índices MongoDB ao iniciar a aplicação de forma idempotente e resiliente a falhas
 - `MongoDbHealthCheck` para o health check `ready`
 - `DependencyInjection` — registro de todos os serviços e handlers no container IoC
 
 **`ATS.API`** — camada de entrada HTTP.
-- Controllers com rotas versionadas (`/api/v1/...`) e documentação XML
-- `ExceptionHandlingMiddleware` — traduz exceções para `ProblemDetails` (RFC 7807)
+- Controllers com rotas versionadas (`/api/v1/...`) e documentação XML — incluindo endpoints `GET /cursor` para paginação por cursor em Candidatos e Vagas
+- `ExceptionHandlingMiddleware` — traduz exceções para `ProblemDetails` (RFC 7807), incluindo `ValidationException` → `ValidationProblemDetails` com erros agrupados por campo
+- `FluentValidationFilter` (`IAsyncActionFilter`) — valida `[FromBody]` antes de entrar no handler para validações de Request HTTP (camada de borda)
+- Validators de Request (`AtualizarCandidatoRequestValidator`, `AtualizarVagaRequestValidator`)
 - `ObservabilityExtensions` — configura Serilog, OpenTelemetry e Prometheus
 - Cabeçalhos de segurança (CSP, X-Frame-Options, etc.)
+- Rate limiting com políticas `leitura` (120 req/min) e `escrita` (30 req/min) por IP — `[EnableRateLimiting]` em todos os endpoints
 - Health checks (`/health/live`, `/health/ready`)
-- `Program.cs` com configuração de CORS, `ForwardedHeaders` e Swagger
+- `Program.cs` com configuração de CORS, `ForwardedHeaders`, Swagger e registro de validators FluentValidation
 
 **`tests/`** — estratégia de testes em cinco projetos:
 - `ATS.Domain.Tests` — regras de domínio, value objects e invariantes
@@ -163,38 +174,63 @@ ATS.Solution/
 ├── src/
 │   ├── ATS.API/
 │   │   ├── Controllers/
-│   │   │   ├── CandidatosController.cs
-│   │   │   ├── VagasController.cs
+│   │   │   ├── CandidatosController.cs    # inclui GET /cursor (paginação por cursor)
+│   │   │   ├── VagasController.cs         # inclui GET /cursor com filtro opcional por status
 │   │   │   └── CandidaturasController.cs
+│   │   ├── Filters/
+│   │   │   └── FluentValidationFilter.cs  # IAsyncActionFilter — valida [FromBody] na borda HTTP
 │   │   ├── Middlewares/
-│   │   │   └── ExceptionHandlingMiddleware.cs
+│   │   │   └── ExceptionHandlingMiddleware.cs  # trata ValidationException → 400 com erros por campo
 │   │   ├── Observability/
 │   │   │   ├── ObservabilityExtensions.cs
 │   │   │   └── ObservabilitySettings.cs
 │   │   ├── Requests/
+│   │   │   ├── Candidatos/
+│   │   │   │   ├── AtualizarCandidatoRequest.cs
+│   │   │   │   └── AtualizarCandidatoRequestValidator.cs
+│   │   │   └── Vagas/
+│   │   │       ├── AtualizarVagaRequest.cs
+│   │   │       └── AtualizarVagaRequestValidator.cs
 │   │   ├── appsettings.json
 │   │   ├── appsettings.Development.json
 │   │   ├── Dockerfile
-│   │   └── Program.cs
+│   │   └── Program.cs                     # rate limiting, FluentValidation DI, Test env bypass
 │   │
 │   ├── ATS.Application/
 │   │   ├── Candidatos/
-│   │   │   ├── Commands/          # CreateCandidato, UpdateCandidato, DeleteCandidato, AddCurriculo
-│   │   │   ├── Queries/           # GetCandidatoById, ListCandidatos
-│   │   │   └── DTOs/
+│   │   │   ├── Commands/
+│   │   │   │   ├── CreateCandidato/   # Handler + Command + Validator
+│   │   │   │   ├── UpdateCandidato/   # Handler + Command + Validator
+│   │   │   │   ├── DeleteCandidato/
+│   │   │   │   └── AddCurriculo/
+│   │   │   ├── Queries/
+│   │   │   │   ├── GetCandidatoById/
+│   │   │   │   └── ListCandidatos/    # paginação offset + cursor (ListCandidatosComCursorQuery/Handler)
+│   │   │   └── DTOs/                  # CandidatoDto (com CurriculoDto?), CurriculoDto
 │   │   ├── Vagas/
-│   │   │   ├── Commands/          # CreateVaga, UpdateVaga, DeleteVaga, FecharVaga
-│   │   │   ├── Events/            # FecharVagaAposPrimeiraAprovacaoHandler
-│   │   │   ├── Queries/           # GetVagaById, ListVagas
+│   │   │   ├── Commands/
+│   │   │   │   ├── CreateVaga/        # Handler + Command + Validator
+│   │   │   │   ├── UpdateVaga/        # Handler + Command + Validator
+│   │   │   │   ├── DeleteVaga/
+│   │   │   │   └── FecharVaga/
+│   │   │   ├── Events/                # FecharVagaAposPrimeiraAprovacaoHandler
+│   │   │   ├── Queries/
+│   │   │   │   ├── GetVagaById/
+│   │   │   │   └── ListVagas/         # paginação offset + cursor (ListVagasComCursorQuery/Handler)
 │   │   │   └── DTOs/
 │   │   ├── Candidaturas/
-│   │   │   ├── Commands/          # CandidatarSe, AprovarCandidatura, ReprovarCandidatura, CancelarCandidatura
-│   │   │   ├── Events/            # Auditoria, notificação e cancelamento automático
-│   │   │   ├── Queries/           # GetCandidaturaById, ListCandidatosPorVaga
+│   │   │   ├── Commands/
+│   │   │   │   ├── CandidatarSe/      # Handler + Command + Validator
+│   │   │   │   ├── AprovarCandidatura/
+│   │   │   │   ├── ReprovarCandidatura/
+│   │   │   │   └── CancelarCandidatura/
+│   │   │   ├── Events/                # Auditoria, notificação e cancelamento automático
+│   │   │   ├── Queries/               # GetCandidaturaById, ListCandidatosPorVaga
 │   │   │   └── DTOs/
 │   │   ├── Common/
-│   │   │   ├── Events/            # IDomainEventDispatcher
-│   │   │   └── Pagination/        # PagedResult<T>
+│   │   │   ├── Events/                # IDomainEventDispatcher
+│   │   │   ├── Pagination/            # PagedResult<T>, CursorPagedResult<T>
+│   │   │   └── Validation/            # ValidationException
 │   │   └── Observability/
 │   │       └── AtsMetrics.cs
 │   │
@@ -229,8 +265,11 @@ ATS.Solution/
 │       │   └── MongoDbHealthCheck.cs
 │       ├── Persistence/
 │       │   ├── Context/           # MongoDbContext, MongoDbSettings
+│       │   ├── Indexes/
+│       │   │   └── MongoIndexInitializer.cs  # IHostedService — cria índices ao iniciar
 │       │   ├── Mappings/          # BsonClassMap para cada agregado
 │       │   └── Repositories/      # CandidatoRepository, VagaRepository, CandidaturaRepository
+│       │                          # (todos com ListarComCursorAsync)
 │       └── DependencyInjection.cs
 │
 ├── tests/
@@ -400,7 +439,19 @@ O mapeamento entre classes C# e documentos BSON é feito via `BsonClassMap` regi
 
 ### Índices
 
-Os índices são criados automaticamente pelo MongoDB conforme necessário. Para ambientes de produção com alto volume, considere criar índices explícitos (listados no [Roadmap](#roadmap)).
+Os índices são criados ao iniciar a aplicação pelo `MongoIndexInitializer` (`IHostedService`), de forma **idempotente** e **resiliente a falhas** — se o MongoDB não estiver acessível, a aplicação continua sem interromper a inicialização e registra um `Warning` em log.
+
+| Coleção | Índice | Tipo | Finalidade |
+|---------|--------|------|-----------|
+| `candidatos` | `ix_candidatos_email_unique` | Único, `email.value ASC` | Garante unicidade de e-mail |
+| `candidatos` | `ix_candidatos_nome` | Simples, `nome ASC` | Ordenação em listagens |
+| `vagas` | `ix_vagas_dataAbertura_desc` | Simples, `dataAbertura DESC` | Listagens ordenadas e paginação por cursor |
+| `vagas` | `ix_vagas_status` | Simples, `status ASC` | Filtragem por status |
+| `vagas` | `ix_vagas_status_dataAbertura` | Composto, `status ASC + dataAbertura DESC` | Listagens filtradas e ordenadas |
+| `candidaturas` | `ix_candidaturas_candidato_vaga_unique` | Único composto, `candidatoId + vagaId` | Impede candidatura duplicada |
+| `candidaturas` | `ix_candidaturas_vagaId` | Simples, `vagaId ASC` | `ListarPorVagaAsync` |
+| `candidaturas` | `ix_candidaturas_candidatoId` | Simples, `candidatoId ASC` | Filtro por candidato |
+| `candidaturas` | `ix_candidaturas_status` | Simples, `status ASC` | Cancelamento de candidaturas pendentes |
 
 ---
 
@@ -427,35 +478,59 @@ Os endpoints são documentados com `[ProducesResponseType]` e comentários XML g
 ### Candidatos
 
 ```
-POST   /api/v1/candidatos              → 201 Created
-GET    /api/v1/candidatos              → 200 OK (paginado)
-GET    /api/v1/candidatos/{id}         → 200 OK | 404 Not Found
-PUT    /api/v1/candidatos/{id}         → 200 OK | 404 Not Found
-DELETE /api/v1/candidatos/{id}         → 204 No Content | 404 Not Found
-POST   /api/v1/candidatos/{id}/curriculo → 200 OK | 404 Not Found
+POST   /api/v1/candidatos                    → 201 Created | 400 (validação)
+GET    /api/v1/candidatos                    → 200 OK (paginação offset)
+GET    /api/v1/candidatos/cursor             → 200 OK (paginação por cursor)
+GET    /api/v1/candidatos/{id}               → 200 OK | 404 Not Found
+PUT    /api/v1/candidatos/{id}               → 200 OK | 400 | 404
+DELETE /api/v1/candidatos/{id}               → 204 No Content | 404
+POST   /api/v1/candidatos/{id}/curriculo     → 200 OK | 404
 ```
 
 ### Vagas
 
 ```
-POST   /api/v1/vagas                   → 201 Created
-GET    /api/v1/vagas                   → 200 OK (paginado)
-GET    /api/v1/vagas/{id}              → 200 OK | 404 Not Found
-PUT    /api/v1/vagas/{id}              → 200 OK | 404 Not Found
-DELETE /api/v1/vagas/{id}              → 204 No Content | 404 Not Found
-PATCH  /api/v1/vagas/{id}/fechar       → 200 OK | 404 Not Found | 409 Conflict
+POST   /api/v1/vagas                         → 201 Created | 400 (validação)
+GET    /api/v1/vagas                         → 200 OK (paginação offset, filtro opcional por status)
+GET    /api/v1/vagas/cursor                  → 200 OK (paginação por cursor, filtro opcional por status)
+GET    /api/v1/vagas/{id}                    → 200 OK | 404
+PUT    /api/v1/vagas/{id}                    → 200 OK | 400 | 404 | 409
+DELETE /api/v1/vagas/{id}                    → 204 No Content | 404
+PATCH  /api/v1/vagas/{id}/fechar             → 200 OK | 404 | 409
 ```
 
 ### Candidaturas
 
 ```
-POST   /api/v1/candidaturas                        → 201 Created | 409 Conflict
-GET    /api/v1/candidaturas/{id}                   → 200 OK | 404 Not Found
-GET    /api/v1/candidaturas/vagas/{vagaId}/candidatos → 200 OK | 404 Not Found
-PATCH  /api/v1/candidaturas/{id}/aprovar              → 200 OK | 404 | 409 Conflict
-PATCH  /api/v1/candidaturas/{id}/reprovar             → 200 OK | 404 | 409 Conflict
-PATCH  /api/v1/candidaturas/{id}/cancelar             → 200 OK | 404 | 409 Conflict
+POST   /api/v1/candidaturas                              → 201 Created | 400 | 409
+GET    /api/v1/candidaturas/{id}                         → 200 OK | 404
+GET    /api/v1/candidaturas/vagas/{vagaId}/candidatos    → 200 OK | 404
+PATCH  /api/v1/candidaturas/{id}/aprovar                 → 200 OK | 404 | 409
+PATCH  /api/v1/candidaturas/{id}/reprovar                → 200 OK | 404 | 409
+PATCH  /api/v1/candidaturas/{id}/cancelar                → 200 OK | 404 | 409
 ```
+
+> Todos os endpoints de escrita respondem `429 Too Many Requests` quando o rate limit de 30 req/min é excedido. Endpoints de leitura respondem `429` com limite de 120 req/min.
+
+### Paginação por cursor — parâmetros
+
+| Parâmetro | Tipo | Padrão | Descrição |
+|-----------|------|--------|-----------|
+| `cursor` | `string?` | `null` | Token opaco (Base64 do GUID) retornado pelo campo `proximoCursor` da resposta anterior |
+| `limite` | `int` | `20` | Itens por página (1–100) |
+| `status` | `StatusVaga?` | `null` | (somente vagas) Filtra por status após busca |
+
+Resposta `CursorPagedResult<T>`:
+
+```json
+{
+  "items": [...],
+  "proximoCursor": "AAAAAAAAAAAAAAAAAAAAAAAA",
+  "temMais": true
+}
+```
+
+Para carregar a próxima página, passe o valor de `proximoCursor` como parâmetro `cursor` na próxima requisição. Quando `temMais` for `false`, não há mais itens.
 
 ### Infraestrutura
 
@@ -1389,7 +1464,7 @@ sequenceDiagram
 ### Observações de arquitetura identificadas
 
 - **Autenticação/autorização:** não há autenticação JWT, roles, policies ou `[Authorize]` implementados. O uso de `UseAuthorization()` hoje não protege as rotas.
-- **Validação:** não há camada de validators externos como FluentValidation. As validações vivem em handlers e, principalmente, nos métodos/factories do domínio.
+- **Validação:** defesa em duas camadas — `FluentValidationFilter` (borda HTTP, Requests) e validators injetados nos handlers da Application (Commands). Regras de invariante de domínio ainda vivem nos factories/métodos do agregado como terceira linha de defesa.
 - **Eventos de domínio:** existe dispatch interno via MediatR, mas não há outbox, retry persistente ou mensageria externa.
 - **Redispatch em event handlers:** eventos gerados dentro de event handlers, como `VagaFechadaEvent` no fechamento automático após aprovação, não são publicados novamente.
 - **Transações:** não há sessões/transações MongoDB. Cada operação de repositório é uma chamada independente.
@@ -1402,22 +1477,30 @@ sequenceDiagram
 
 ## Testes
 
-O projeto possui **645 testes** distribuídos em cinco projetos:
+O projeto possui **911 testes** distribuídos em cinco projetos:
 
-| Projeto | Tipo | Foco |
-|---------|------|------|
-| `ATS.Domain.Tests` | Unitário | Entidades, Value Objects, invariantes de domínio |
-| `ATS.Application.Tests` | Unitário | Handlers, event handlers e mocks estritos de repositórios |
-| `ATS.Infrastructure.Tests` | Integração | Repositórios contra MongoDB e dispatcher MediatR |
-| `ATS.API.Tests` | Unitário | Controllers, ExceptionHandlingMiddleware, ObservabilityExtensions |
-| `ATS.E2E.Tests` | E2E | Fluxos completos com Testcontainers + MongoDB real |
+| Projeto | Tipo | Qtd aprox. | Foco |
+|---------|------|------------|------|
+| `ATS.Domain.Tests` | Unitário | 271 | Entidades, Value Objects, invariantes de domínio |
+| `ATS.Application.Tests` | Unitário | 424 | Handlers, event handlers, validators de Commands, paginação por cursor |
+| `ATS.Infrastructure.Tests` | Integração | 107 | Repositórios (incl. cursor), `MongoIndexInitializer`, dispatcher MediatR |
+| `ATS.API.Tests` | Unitário | 54 | Controllers, Middleware (incl. `ValidationException`), validators de Request |
+| `ATS.E2E.Tests` | E2E | 55 | Fluxos completos com Testcontainers + MongoDB real |
 
-Resumo refletido nos badges do topo: **594** testes unitários/integração sem E2E + **51** testes E2E = **645** testes.
+Resumo refletido nos badges do topo: **856** testes unitários/integração + **55** testes E2E = **911** testes.
 
-Cobertura específica de eventos de domínio:
-- `ATS.Domain.Tests` valida criação dos eventos e acúmulo em `DomainEvents`.
-- `ATS.Application.Tests` valida dispatch após persistência e comportamento dos `INotificationHandler<TEvent>`.
-- `ATS.Infrastructure.Tests` valida `MediatRDomainEventDispatcher`, publicação via `IMediator` e limpeza dos eventos do agregado.
+Cobertura por funcionalidade:
+
+| Funcionalidade | Onde está testado |
+|----------------|-------------------|
+| Regras de domínio | Domain.Tests — entidades, Value Objects, factories |
+| Eventos de domínio | Domain.Tests (criação/acúmulo), Application.Tests (dispatch, handlers), Infrastructure.Tests (dispatcher, limpeza) |
+| FluentValidation (Commands) | Application.Tests — validators individuais + comportamento no handler (lança `ValidationException`) |
+| FluentValidation (Requests) | API.Tests — `AtualizarCandidatoRequestValidator`, `AtualizarVagaRequestValidator` |
+| Paginação por cursor | Application.Tests (handler, query, encode/decode Base64), Infrastructure.Tests (filtro MongoDB gerado) |
+| Rate limiting | API.Tests — ambiente de teste usa `GetNoLimiter`, sem bloqueio |
+| Índices MongoDB | Infrastructure.Tests — `MongoIndexInitializer`: criação bem-sucedida, falha resiliente (Warning), `StopAsync` |
+| ExceptionHandlingMiddleware | API.Tests — `DomainException` → 400/404/409, `ValidationException` → 400 com erros por campo, 500 sem vazar detalhes |
 
 ### Executar todos os testes unitários
 
@@ -1443,7 +1526,7 @@ dotnet test
 
 ## Cobertura de código
 
-Cobertura atual de linhas: **98.2%** (`942/959` linhas cobertas), conforme o relatório local em `coverage-report/Summary.txt`.
+Cobertura atual de linhas: **≥ 99%** (todas as linhas novas adicionadas nas últimas iterações foram cobertas, incluindo o bloco `catch` do `MongoIndexInitializer`), conforme o relatório local em `coverage-report/Summary.txt`.
 
 ### Coletar cobertura
 
@@ -1546,9 +1629,48 @@ Interfaces definidas no domínio (`IXRepository`), implementadas na infraestrutu
 
 Todos os logs estruturados nos handlers usam o atributo `[LoggerMessage]` (geração de código em tempo de compilação). Isso elimina boxing de parâmetros, verifica `IsEnabled` antes de construir a string de log e garante performance zero-cost quando o nível de log está desabilitado.
 
+### FluentValidation — defesa em profundidade
+
+A validação acontece em duas camadas independentes:
+
+1. **`FluentValidationFilter`** (`IAsyncActionFilter`, registrado globalmente em `Program.cs`) — valida DTOs de Request HTTP (`AtualizarCandidatoRequest`, `AtualizarVagaRequest`) antes de chegar ao handler. Retorna `400 ValidationProblemDetails` com erros agrupados por campo.
+2. **Validators de Command** (`CreateVagaCommandValidator`, `UpdateVagaCommandValidator`, etc.) — injetados via `IValidator<TCommand>` nos handlers da Application. Chamados no início de `HandleAsync`; lançam `ATS.Application.Common.Validation.ValidationException` (mapeada para 400 pelo middleware).
+
+O domínio continua validando invariantes em seus factories — é a terceira linha de defesa, independente das camadas anteriores.
+
+### Paginação por cursor
+
+Implementada em paralelo à paginação por offset existente. O mecanismo:
+
+1. O cliente faz `GET /api/v1/vagas/cursor?limite=20&status=Aberta` (primeiro acesso sem `cursor`).
+2. O handler busca `limite+1` documentos do MongoDB, ordenados por `_id ASC`.
+3. Se retornou `limite+1` itens, descarta o último e define `temMais=true`, codificando o `_id` do último item retornado como `proximoCursor` (Base64 do Guid).
+4. Na próxima chamada, o handler decodifica o cursor, monta um filtro `{ _id: { $gt: afterId } }` e repete.
+
+Vantagem sobre offset: não há drift de resultados quando documentos são inseridos/removidos entre páginas, e a performance é constante independente da profundidade da página.
+
+### Rate Limiting por IP (janela fixa)
+
+Configurado via `AddRateLimiter` em `Program.cs` com duas políticas:
+
+| Política | Endpoints | Limite | Janela |
+|----------|-----------|--------|--------|
+| `"leitura"` | GET (todos) | 120 req | 1 minuto |
+| `"escrita"` | POST, PUT, PATCH, DELETE | 30 req | 1 minuto |
+
+Todos os endpoints dos controllers têm `[EnableRateLimiting("leitura")]` ou `[EnableRateLimiting("escrita")]`. Em ambiente de teste (`ASPNETCORE_ENVIRONMENT == "Test"`), a política é substituída por `RateLimitPartition.GetNoLimiter("test")` para não interferir nos testes.
+
+### Índices MongoDB via `IHostedService`
+
+`MongoIndexInitializer` implementa `IHostedService` e cria todos os índices no `StartAsync`. O design é deliberadamente resiliente:
+
+- Usa `IServiceScopeFactory` para criar um scope transitório (necessário pois `IMongoDbContext` é registrado como `Scoped`)
+- Qualquer exceção é capturada no `catch`, logada como `LogLevel.Warning` e silenciada — a aplicação continua a inicializar mesmo se o MongoDB estiver temporariamente inacessível ou sem permissão para criar índices
+- Índices são criados com `CreateOneAsync` (operação idempotente no MongoDB — recriar um índice com mesmo nome e mesmo spec é no-op)
+
 ### ExceptionHandlingMiddleware com ProblemDetails
 
-Um único middleware centraliza todo tratamento de exceções e serializa respostas no formato **RFC 7807 (Problem Details)**. O `DomainException` é mapeado para códigos HTTP semanticamente corretos (404 para "não encontrado", 409 para conflito de estado). Detalhes internos de exceções inesperadas nunca vazam para o cliente.
+Um único middleware centraliza todo tratamento de exceções e serializa respostas no formato **RFC 7807 (Problem Details)**. O `DomainException` é mapeado para códigos HTTP semanticamente corretos (404 para "não encontrado", 409 para conflito de estado). `ValidationException` é serializada como `ValidationProblemDetails` (variante RFC 7807 com campo `errors`). Detalhes internos de exceções inesperadas nunca vazam para o cliente.
 
 ### MongoDB sem ORM
 
@@ -1606,17 +1728,34 @@ O `ExceptionHandlingMiddleware` intercepta todas as exceções não tratadas e p
 }
 ```
 
-| Exceção | Status HTTP | Título |
-|---------|-------------|--------|
-| `DomainException` (não encontrado) | 404 | Mensagem do domínio |
-| `DomainException` (conflito) | 409 | Mensagem do domínio |
-| `DomainException` (validação) | 400 | Mensagem do domínio |
-| `BadHttpRequestException` | 400 | "Requisição inválida." |
-| `ArgumentException` | 400 | "Requisição inválida." |
-| `KeyNotFoundException` | 404 | "Recurso não encontrado." |
-| Qualquer outra | 500 | "Erro interno no servidor." |
+| Exceção | Status HTTP | Formato | Título |
+|---------|-------------|---------|--------|
+| `ValidationException` (FluentValidation) | 400 | `ValidationProblemDetails` | "Um ou mais erros de validação ocorreram." — erros agrupados por campo em `errors` |
+| `DomainException` (não encontrado) | 404 | `ProblemDetails` | Mensagem do domínio |
+| `DomainException` (conflito) | 409 | `ProblemDetails` | Mensagem do domínio |
+| `DomainException` (validação) | 400 | `ProblemDetails` | Mensagem do domínio |
+| `BadHttpRequestException` | 400 | `ProblemDetails` | "Requisição inválida." |
+| `ArgumentException` | 400 | `ProblemDetails` | "Requisição inválida." |
+| `KeyNotFoundException` | 404 | `ProblemDetails` | "Recurso não encontrado." |
+| Qualquer outra | 500 | `ProblemDetails` | "Erro interno no servidor." |
 
-Exceções 5xx são registradas com `LogLevel.Error`; exceções de domínio com `LogLevel.Warning`.  
+`ValidationException` **não é registrada em log** (não é um erro de aplicação — é input inválido). Exceções 5xx são registradas com `LogLevel.Error`; exceções de domínio com `LogLevel.Warning`.
+
+Exemplo de resposta de validação:
+
+```json
+{
+  "status": 400,
+  "title": "Um ou mais erros de validação ocorreram.",
+  "instance": "/api/v1/vagas",
+  "traceId": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+  "errors": {
+    "Titulo": ["'Titulo' deve ser informado.", "'Titulo' deve ter no máximo 200 caracteres."],
+    "Salario": ["'Salario' deve ser maior ou igual a 0."]
+  }
+}
+```
+
 Detalhes internos **nunca** são expostos em respostas 5xx.
 
 ---
@@ -1694,14 +1833,17 @@ Consulte o [docs/bdd/README.md](docs/bdd/README.md) para convenções de escrita
 
 ## Roadmap
 
-Melhorias planejadas para versões futuras:
+### Concluído ✅
+
+- [x] **Criação explícita de índices MongoDB** — `MongoIndexInitializer` (`IHostedService`) cria 9 índices (unicidade de e-mail, unicidade de candidatura, índices de suporte a cursor e filtros de status) de forma idempotente e resiliente a falhas
+- [x] **Paginação com cursor** — `GET /cursor` em Candidatos e Vagas; `CursorPagedResult<T>` com `proximoCursor` opaco em Base64, filtro `{ _id: { $gt: afterId } }` no MongoDB
+- [x] **FluentValidation** — validators em todos os Commands (5 validators) e Requests HTTP (2 validators); `FluentValidationFilter` global na borda HTTP; `ValidationException` → 400 `ValidationProblemDetails` com erros agrupados por campo
+- [x] **Rate limiting** — políticas `"leitura"` (120 req/min) e `"escrita"` (30 req/min) por IP em todos os endpoints; bypass automático em ambiente de teste
+
+### Planejado
 
 - [ ] **Autenticação e autorização** — JWT Bearer com roles (Recrutador, Admin)
-- [ ] **Criação explícita de índices MongoDB** — índice em `Email.Value` para unicidade de candidatos, índice composto em `CandidatoId + VagaId` para candidaturas
-- [ ] **Paginação com cursor** — substituir paginação por offset por paginação baseada em cursor para melhor performance em grandes volumes
 - [ ] **Outbox e mensageria para eventos de domínio** — persistir eventos e publicar em RabbitMQ / Azure Service Bus com retry e rastreabilidade
-- [ ] **FluentValidation** — validação declarativa de Commands com mensagens de erro detalhadas
-- [ ] **Rate limiting** — throttling por IP/usuário nas rotas públicas
 - [ ] **Audit log** — registro imutável de todas as transições de estado das candidaturas
 - [ ] **Dashboard Grafana** — dashboards pré-configurados para as métricas `ats.*`
 - [ ] **Multi-tenancy** — isolamento de dados por empresa/cliente

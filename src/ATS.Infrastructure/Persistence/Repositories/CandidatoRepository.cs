@@ -14,11 +14,6 @@ public class CandidatoRepository : ICandidatoRepository
     public CandidatoRepository(IMongoDbContext context)
     {
         _collection = context.GetCollection<Candidato>("candidatos");
-
-        var indexModel = new CreateIndexModel<Candidato>(
-            Builders<Candidato>.IndexKeys.Ascending(_emailValueField),
-            new CreateIndexOptions { Unique = true });
-        _collection.Indexes.CreateOne(indexModel);
     }
 
     public async Task<Candidato?> ObterPorIdAsync(Guid id, CancellationToken ct = default) =>
@@ -35,6 +30,19 @@ public class CandidatoRepository : ICandidatoRepository
             .Skip((pagina - 1) * tamanhoPagina)
             .Limit(tamanhoPagina)
             .ToListAsync(ct);
+
+    public async Task<IEnumerable<Candidato>> ListarComCursorAsync(
+        Guid? afterId, int limite, CancellationToken ct = default)
+    {
+        var filter = afterId.HasValue
+            ? Builders<Candidato>.Filter.Gt(c => c.Id, afterId.Value)
+            : FilterDefinition<Candidato>.Empty;
+
+        return await _collection.Find(filter)
+            .Sort(Builders<Candidato>.Sort.Ascending(c => c.Id))
+            .Limit(limite)
+            .ToListAsync(ct);
+    }
 
     public async Task<long> ContarAsync(CancellationToken ct = default) =>
         await _collection.CountDocumentsAsync(FilterDefinition<Candidato>.Empty, cancellationToken: ct);

@@ -9,6 +9,7 @@ using ATS.Application.Candidaturas.DTOs;
 using ATS.Application.Candidaturas.Queries.GetCandidaturaById;
 using ATS.Application.Candidaturas.Queries.ListCandidatosPorVaga;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 [ApiController]
 [Route("api/v1/candidaturas")]
@@ -38,9 +39,11 @@ public sealed class CandidaturasController : ControllerBase
     }
 
     [HttpPost]
+    [EnableRateLimiting("escrita")]
     [ProducesResponseType(typeof(CandidaturaDto), 201)]
     [ProducesResponseType(400)]
     [ProducesResponseType(409)]
+    [ProducesResponseType(429)]
     public async Task<ActionResult<CandidaturaDto>> CandidatarSe(
         [FromBody] CandidatarSeCommand command,
         CancellationToken ct = default)
@@ -50,8 +53,10 @@ public sealed class CandidaturasController : ControllerBase
     }
 
     [HttpGet("{id:guid}")]
+    [EnableRateLimiting("leitura")]
     [ProducesResponseType(typeof(CandidaturaDetalhadaDto), 200)]
     [ProducesResponseType(404)]
+    [ProducesResponseType(429)]
     public async Task<ActionResult<CandidaturaDetalhadaDto>> ObterPorId(
         Guid id,
         CancellationToken ct = default)
@@ -64,8 +69,10 @@ public sealed class CandidaturasController : ControllerBase
     }
 
     [HttpGet("vagas/{vagaId:guid}/candidatos")]
+    [EnableRateLimiting("leitura")]
     [ProducesResponseType(typeof(IEnumerable<CandidaturaDetalhadaDto>), 200)]
     [ProducesResponseType(404)]
+    [ProducesResponseType(429)]
     public async Task<ActionResult<IEnumerable<CandidaturaDetalhadaDto>>> ListarPorVaga(
         Guid vagaId,
         CancellationToken ct = default)
@@ -78,10 +85,12 @@ public sealed class CandidaturasController : ControllerBase
     }
 
     [HttpPatch("{id:guid}/aprovar")]
+    [EnableRateLimiting("escrita")]
     [ProducesResponseType(typeof(CandidaturaDto), 200)]
     [ProducesResponseType(400)]
     [ProducesResponseType(404)]
     [ProducesResponseType(409)]
+    [ProducesResponseType(429)]
     public async Task<ActionResult<CandidaturaDto>> Aprovar(
         Guid id,
         [FromBody] ObservacoesRequest? request,
@@ -95,10 +104,12 @@ public sealed class CandidaturasController : ControllerBase
     }
 
     [HttpPatch("{id:guid}/reprovar")]
+    [EnableRateLimiting("escrita")]
     [ProducesResponseType(typeof(CandidaturaDto), 200)]
     [ProducesResponseType(400)]
     [ProducesResponseType(404)]
     [ProducesResponseType(409)]
+    [ProducesResponseType(429)]
     public async Task<ActionResult<CandidaturaDto>> Reprovar(
         Guid id,
         [FromBody] ObservacoesRequest? request,
@@ -112,10 +123,12 @@ public sealed class CandidaturasController : ControllerBase
     }
 
     [HttpPatch("{id:guid}/cancelar")]
+    [EnableRateLimiting("escrita")]
     [ProducesResponseType(typeof(CandidaturaDto), 200)]
     [ProducesResponseType(400)]
     [ProducesResponseType(404)]
     [ProducesResponseType(409)]
+    [ProducesResponseType(429)]
     public async Task<ActionResult<CandidaturaDto>> Cancelar(
         Guid id,
         CancellationToken ct = default)

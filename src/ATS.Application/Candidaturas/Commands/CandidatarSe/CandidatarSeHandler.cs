@@ -2,6 +2,7 @@ namespace ATS.Application.Candidaturas.Commands.CandidatarSe;
 
 using ATS.Application.Candidaturas.DTOs;
 using ATS.Application.Common.Events;
+using ATS.Application.Common.Validation;
 using ATS.Application.Observability;
 using ATS.Domain.Candidatos.Repositories;
 using ATS.Domain.Candidaturas.Entities;
@@ -9,6 +10,7 @@ using ATS.Domain.Candidaturas.Repositories;
 using ATS.Domain.Shared;
 using ATS.Domain.Vagas.Enums;
 using ATS.Domain.Vagas.Repositories;
+using FluentValidation;
 using Microsoft.Extensions.Logging;
 
 public partial class CandidatarSeHandler
@@ -17,6 +19,7 @@ public partial class CandidatarSeHandler
     private readonly ICandidatoRepository _candidatoRepository;
     private readonly IVagaRepository _vagaRepository;
     private readonly IDomainEventDispatcher _dispatcher;
+    private readonly IValidator<CandidatarSeCommand> _validator;
     private readonly ILogger<CandidatarSeHandler> _logger;
 
     public CandidatarSeHandler(
@@ -24,12 +27,14 @@ public partial class CandidatarSeHandler
         ICandidatoRepository candidatoRepository,
         IVagaRepository vagaRepository,
         IDomainEventDispatcher dispatcher,
+        IValidator<CandidatarSeCommand> validator,
         ILogger<CandidatarSeHandler> logger)
     {
         _candidaturaRepository = candidaturaRepository;
         _candidatoRepository = candidatoRepository;
         _vagaRepository = vagaRepository;
         _dispatcher = dispatcher;
+        _validator = validator;
         _logger = logger;
     }
 
@@ -37,6 +42,12 @@ public partial class CandidatarSeHandler
         CandidatarSeCommand command,
         CancellationToken ct = default)
     {
+        var validation = await _validator.ValidateAsync(command, ct);
+        if (!validation.IsValid)
+        {
+            throw new Application.Common.Validation.ValidationException(validation.Errors);
+        }
+
         var candidato = await _candidatoRepository.ObterPorIdAsync(command.CandidatoId, ct)
             ?? throw new DomainException("Candidato não encontrado.");
 

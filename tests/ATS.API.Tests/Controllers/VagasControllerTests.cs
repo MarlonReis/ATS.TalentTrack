@@ -1,5 +1,6 @@
 using ATS.API.Controllers;
 using ATS.API.Requests.Vagas;
+using ATS.Application.Candidatos.Queries.ListCandidatos;
 using ATS.Application.Common.Events;
 using ATS.Application.Common.Pagination;
 using ATS.Application.Vagas.Commands.CreateVaga;
@@ -34,10 +35,11 @@ public class VagasControllerTests
             .Returns(Task.CompletedTask);
 
         _controller = new VagasController(
-            new CreateVagaHandler(_vagaRepositoryMock.Object, _dispatcherMock.Object, NullLogger<CreateVagaHandler>.Instance),
+            new CreateVagaHandler(_vagaRepositoryMock.Object, _dispatcherMock.Object, new CreateVagaCommandValidator(), NullLogger<CreateVagaHandler>.Instance),
             new GetVagaByIdHandler(_vagaRepositoryMock.Object),
             new ListVagasHandler(_vagaRepositoryMock.Object),
-            new UpdateVagaHandler(_vagaRepositoryMock.Object, NullLogger<UpdateVagaHandler>.Instance),
+            new ListVagasComCursorHandler(_vagaRepositoryMock.Object),
+            new UpdateVagaHandler(_vagaRepositoryMock.Object, new UpdateVagaCommandValidator(), NullLogger<UpdateVagaHandler>.Instance),
             new DeleteVagaHandler(_vagaRepositoryMock.Object, NullLogger<DeleteVagaHandler>.Instance),
             new FecharVagaHandler(_vagaRepositoryMock.Object, _dispatcherMock.Object, NullLogger<FecharVagaHandler>.Instance));
     }

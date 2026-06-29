@@ -26,6 +26,19 @@ public sealed class VagaRepository : IVagaRepository
             .Limit(tamanhoPagina)
             .ToListAsync(ct);
 
+    public async Task<IEnumerable<Vaga>> ListarComCursorAsync(
+        Guid? afterId, int limite, CancellationToken ct = default)
+    {
+        var filter = afterId.HasValue
+            ? Builders<Vaga>.Filter.Gt(v => v.Id, afterId.Value)
+            : FilterDefinition<Vaga>.Empty;
+
+        return await _collection.Find(filter)
+            .Sort(Builders<Vaga>.Sort.Ascending(v => v.Id))
+            .Limit(limite)
+            .ToListAsync(ct);
+    }
+
     public async Task AdicionarAsync(Vaga vaga, CancellationToken ct = default) =>
         await _collection.InsertOneAsync(vaga, cancellationToken: ct);
 

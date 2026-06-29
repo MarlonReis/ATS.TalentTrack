@@ -35,7 +35,7 @@ internal static class MongoRepositoryTestHelpers
     public static BsonDocument Render<T>(IndexKeysDefinition<T> keys) =>
         keys.Render(CriarRenderArgs<T>());
 
-    private static RenderArgs<T> CriarRenderArgs<T>() =>
+    public static RenderArgs<T> CriarRenderArgs<T>() =>
         new(
             BsonSerializer.SerializerRegistry.GetSerializer<T>(),
             BsonSerializer.SerializerRegistry);

@@ -1,3 +1,4 @@
+using ATS.Application.Common.Validation;
 using ATS.Application.Vagas.Commands.DeleteVaga;
 using ATS.Application.Vagas.Commands.UpdateVaga;
 using ATS.Domain.Shared;
@@ -19,7 +20,7 @@ public class UpdateVagaHandlerTests
     public UpdateVagaHandlerTests()
     {
         _repoMock = new Mock<IVagaRepository>(MockBehavior.Strict);
-        _handler = new UpdateVagaHandler(_repoMock.Object, NullLogger<UpdateVagaHandler>.Instance);
+        _handler = new UpdateVagaHandler(_repoMock.Object, new UpdateVagaCommandValidator(), NullLogger<UpdateVagaHandler>.Instance);
     }
 
     private static Vaga CriarVaga(string titulo = "Dev Back-end") =>
@@ -152,6 +153,22 @@ public class UpdateVagaHandlerTests
                 new UpdateVagaCommand(_guidVaga, titulo, descricao, req, salario)));
 
         Assert.Equal("Não é possível editar uma vaga fechada.", excecao.Message);
+        _repoMock.Verify(
+            r => r.AtualizarAsync(It.IsAny<Vaga>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Theory]
+    [InlineData("", "Descrição")]
+    [InlineData("Titulo", "")]
+    public async Task DeveLancarValidationExceptionQuandoComandoForInvalido(
+        string titulo, string descricao)
+    {
+        var ex = await Assert.ThrowsAsync<ValidationException>(
+            () => _handler.HandleAsync(
+                new UpdateVagaCommand(_guidVaga, titulo, descricao, null, 0m)));
+
+        Assert.NotEmpty(ex.Errors);
         _repoMock.Verify(
             r => r.AtualizarAsync(It.IsAny<Vaga>(), It.IsAny<CancellationToken>()),
             Times.Never);

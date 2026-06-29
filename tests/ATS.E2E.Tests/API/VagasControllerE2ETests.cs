@@ -375,6 +375,36 @@ public sealed class VagasControllerE2ETests : IAsyncLifetime
         });
     }
 
+    [Fact]
+    public async Task PutVagasDeveRetornarBadRequestQuandoTituloVazio()
+    {
+        var vaga = await SeedVagaAsync();
+        var request = new AtualizarVagaRequest("", "Descricao valida", null, 5000m);
+
+        await _host.Scenario(_ =>
+        {
+            _.Put.Json(request).ToUrl($"/api/v1/vagas/{vaga.Id}");
+            _.StatusCodeShouldBe(HttpStatusCode.BadRequest);
+            _.ContentTypeShouldBe("application/problem+json");
+            _.ContentShouldContain("\"status\":400");
+        });
+    }
+
+    [Fact]
+    public async Task PutVagasDeveRetornarBadRequestQuandoDescricaoVazia()
+    {
+        var vaga = await SeedVagaAsync();
+        var request = new AtualizarVagaRequest("Titulo valido", "", null, 5000m);
+
+        await _host.Scenario(_ =>
+        {
+            _.Put.Json(request).ToUrl($"/api/v1/vagas/{vaga.Id}");
+            _.StatusCodeShouldBe(HttpStatusCode.BadRequest);
+            _.ContentTypeShouldBe("application/problem+json");
+            _.ContentShouldContain("\"status\":400");
+        });
+    }
+
     // ─── Helper ───────────────────────────────────────────────────────────────
 
     private async Task<Vaga> SeedVagaAsync(

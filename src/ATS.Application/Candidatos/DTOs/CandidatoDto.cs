@@ -9,6 +9,7 @@ public record CandidatoDto(
     string Telefone,
     bool PossuiCurriculo,
     string? NomeCurriculo,
+    CurriculoDto? Curriculo,
     DateTime DataCadastro
 )
 {
@@ -19,6 +20,7 @@ public record CandidatoDto(
         candidato.Telefone.Value,
         candidato.Curriculo is not null,
         candidato.Curriculo?.NomeArquivo,
+        candidato.Curriculo is not null ? CurriculoDto.FromDomain(candidato.Curriculo) : null,
         candidato.DataCadastro
     );
 }

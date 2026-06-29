@@ -1,6 +1,8 @@
 using System.Text.Json;
 using ATS.API.Middlewares;
+using ATS.Application.Common.Validation;
 using ATS.Domain.Shared;
+using FluentValidation.Results;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.Logging;
@@ -194,6 +196,72 @@ public class ExceptionHandlingMiddlewareTests
 
         Assert.Same(exception, excecao);
         loggerMock.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task DeveRetornar400EValidationProblemDetailsParaValidationException()
+    {
+        var errors = new[]
+        {
+            new ValidationFailure("Nome", "Nome é obrigatório."),
+            new ValidationFailure("Email", "E-mail inválido.")
+        };
+        var exception = new ValidationException(errors);
+
+        var (context, _) = await InvokeMiddlewareAsync(exception);
+
+        context.Response.Body.Position = 0;
+        using var json = await JsonDocument.ParseAsync(context.Response.Body);
+
+        Assert.Equal(StatusCodes.Status400BadRequest, context.Response.StatusCode);
+        Assert.Equal("application/problem+json", context.Response.ContentType);
+        Assert.Equal(400, json.RootElement.GetProperty("status").GetInt32());
+        Assert.Equal("Um ou mais erros de validação ocorreram.", json.RootElement.GetProperty("title").GetString());
+        Assert.Equal("/api/v1/candidaturas", json.RootElement.GetProperty("instance").GetString());
+        Assert.Equal("trace-test", GetTraceId(json.RootElement));
+    }
+
+    [Fact]
+    public async Task DeveAgruparErrosDeValidacaoPorPropriedade()
+    {
+        var errors = new[]
+        {
+            new ValidationFailure("Nome", "Nome é obrigatório."),
+            new ValidationFailure("Nome", "Nome não pode exceder 200 caracteres."),
+            new ValidationFailure("Email", "E-mail inválido.")
+        };
+        var exception = new ValidationException(errors);
+
+        var (context, _) = await InvokeMiddlewareAsync(exception);
+
+        context.Response.Body.Position = 0;
+        using var json = await JsonDocument.ParseAsync(context.Response.Body);
+
+        var errosJson = json.RootElement.GetProperty("errors");
+        var nomeErros = errosJson.GetProperty("Nome");
+        Assert.Equal(2, nomeErros.GetArrayLength());
+        var emailErros = errosJson.GetProperty("Email");
+        Assert.Equal(1, emailErros.GetArrayLength());
+    }
+
+    [Fact]
+    public async Task DeveNaoLogarValidationException()
+    {
+        var exception = new ValidationException([new ValidationFailure("Campo", "Inválido.")]);
+        var loggerMock = new Mock<ILogger<ExceptionHandlingMiddleware>>();
+        loggerMock.Setup(l => l.IsEnabled(It.IsAny<LogLevel>())).Returns(true);
+
+        var context = CriarContexto();
+        var middleware = new ExceptionHandlingMiddleware(
+            _ => Task.FromException(exception),
+            loggerMock.Object);
+
+        await middleware.InvokeAsync(context);
+
+        loggerMock.Verify(l => l.Log(
+            It.IsAny<LogLevel>(), It.IsAny<EventId>(), It.IsAny<It.IsAnyType>(),
+            It.IsAny<Exception?>(), It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Never);
     }
 
     private sealed class StartedResponseFeature : IHttpResponseFeature

@@ -242,6 +242,36 @@ public sealed class CandidatosControllerE2ETests : IAsyncLifetime
         });
     }
 
+    [Fact]
+    public async Task PutCandidatosDeveRetornarBadRequestQuandoNomeVazio()
+    {
+        var candidato = await SeedCandidatoAsync();
+        var request = new AtualizarCandidatoRequest("", "valid@example.com", "11999998888");
+
+        await _host.Scenario(_ =>
+        {
+            _.Put.Json(request).ToUrl($"/api/v1/candidatos/{candidato.Id}");
+            _.StatusCodeShouldBe(HttpStatusCode.BadRequest);
+            _.ContentTypeShouldBe("application/problem+json");
+            _.ContentShouldContain("\"status\":400");
+        });
+    }
+
+    [Fact]
+    public async Task PutCandidatosDeveRetornarBadRequestQuandoEmailInvalido()
+    {
+        var candidato = await SeedCandidatoAsync();
+        var request = new AtualizarCandidatoRequest("Nome Válido", "nao-e-email", "11999998888");
+
+        await _host.Scenario(_ =>
+        {
+            _.Put.Json(request).ToUrl($"/api/v1/candidatos/{candidato.Id}");
+            _.StatusCodeShouldBe(HttpStatusCode.BadRequest);
+            _.ContentTypeShouldBe("application/problem+json");
+            _.ContentShouldContain("\"status\":400");
+        });
+    }
+
     private async Task<Candidato> SeedCandidatoAsync(
         string nome = "Maria Silva",
         string email = "maria.silva@example.com",

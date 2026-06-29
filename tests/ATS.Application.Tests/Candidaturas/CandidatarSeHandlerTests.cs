@@ -1,5 +1,6 @@
 using ATS.Application.Candidaturas.Commands.CandidatarSe;
 using ATS.Application.Common.Events;
+using ATS.Application.Common.Validation;
 using ATS.Domain.Candidatos.Entities;
 using ATS.Domain.Candidatos.Repositories;
 using ATS.Domain.Candidaturas.Enums;
@@ -41,6 +42,7 @@ public class CandidatarSeHandlerTests
             _candidatoRepoMock.Object,
             _vagaRepoMock.Object,
             _dispatcherMock.Object,
+            new CandidatarSeCommandValidator(),
             NullLogger<CandidatarSeHandler>.Instance);
     }
 
@@ -504,5 +506,18 @@ public class CandidatarSeHandlerTests
         Assert.Equal(
             new[] { "ObterCandidato", "ObterVaga", "ExisteCandidatura", "AdicionarCandidatura" },
             ordemChamadas);
+    }
+
+    [Theory]
+    [InlineData("00000000-0000-0000-0000-000000000000", "A0000000-0000-0000-0000-000000000001")]
+    [InlineData("A0000000-0000-0000-0000-000000000001", "00000000-0000-0000-0000-000000000000")]
+    public async Task DeveLancarValidationExceptionQuandoIdsForemInvalidos(
+        string candidatoIdStr, string vagaIdStr)
+    {
+        var ex = await Assert.ThrowsAsync<ValidationException>(
+            () => _handler.HandleAsync(
+                new CandidatarSeCommand(Guid.Parse(candidatoIdStr), Guid.Parse(vagaIdStr))));
+
+        Assert.NotEmpty(ex.Errors);
     }
 }

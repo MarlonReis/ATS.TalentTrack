@@ -10,6 +10,7 @@ using ATS.Application.Candidatos.Queries.GetCandidatoById;
 using ATS.Application.Candidatos.Queries.ListCandidatos;
 using ATS.Application.Common.Pagination;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 [ApiController]
 [Route("api/v1/candidatos")]
@@ -18,6 +19,7 @@ public sealed class CandidatosController : ControllerBase
     private readonly CreateCandidatoHandler _createHandler;
     private readonly GetCandidatoByIdHandler _getByIdHandler;
     private readonly ListCandidatosHandler _listHandler;
+    private readonly ListCandidatosComCursorHandler _listComCursorHandler;
     private readonly UpdateCandidatoHandler _updateHandler;
     private readonly DeleteCandidatoHandler _deleteHandler;
     private readonly AddCurriculoHandler _addCurriculoHandler;
@@ -26,6 +28,7 @@ public sealed class CandidatosController : ControllerBase
         CreateCandidatoHandler createHandler,
         GetCandidatoByIdHandler getByIdHandler,
         ListCandidatosHandler listHandler,
+        ListCandidatosComCursorHandler listComCursorHandler,
         UpdateCandidatoHandler updateHandler,
         DeleteCandidatoHandler deleteHandler,
         AddCurriculoHandler addCurriculoHandler)
@@ -33,15 +36,18 @@ public sealed class CandidatosController : ControllerBase
         _createHandler = createHandler;
         _getByIdHandler = getByIdHandler;
         _listHandler = listHandler;
+        _listComCursorHandler = listComCursorHandler;
         _updateHandler = updateHandler;
         _deleteHandler = deleteHandler;
         _addCurriculoHandler = addCurriculoHandler;
     }
 
     [HttpPost]
+    [EnableRateLimiting("escrita")]
     [ProducesResponseType(typeof(CandidatoDto), 201)]
     [ProducesResponseType(400)]
     [ProducesResponseType(409)]
+    [ProducesResponseType(429)]
     public async Task<ActionResult<CandidatoDto>> Criar(
         [FromBody] CreateCandidatoCommand command,
         CancellationToken ct = default)
@@ -51,8 +57,10 @@ public sealed class CandidatosController : ControllerBase
     }
 
     [HttpGet("{id:guid}")]
+    [EnableRateLimiting("leitura")]
     [ProducesResponseType(typeof(CandidatoDto), 200)]
     [ProducesResponseType(404)]
+    [ProducesResponseType(429)]
     public async Task<ActionResult<CandidatoDto>> ObterPorId(
         Guid id,
         CancellationToken ct = default)
@@ -65,8 +73,10 @@ public sealed class CandidatosController : ControllerBase
     }
 
     [HttpGet]
+    [EnableRateLimiting("leitura")]
     [ProducesResponseType(typeof(PagedResult<CandidatoDto>), 200)]
     [ProducesResponseType(400)]
+    [ProducesResponseType(429)]
     public async Task<ActionResult<PagedResult<CandidatoDto>>> Listar(
         [FromQuery] int pagina = 1,
         [FromQuery] int tamanhoPagina = 20,
@@ -79,11 +89,34 @@ public sealed class CandidatosController : ControllerBase
         return Ok(resultado);
     }
 
+    /// <summary>
+    /// Lista candidatos usando paginação por cursor.
+    /// Passe o valor de <c>proximoCursor</c> retornado na resposta anterior como parâmetro <c>cursor</c>.
+    /// </summary>
+    [HttpGet("cursor")]
+    [EnableRateLimiting("leitura")]
+    [ProducesResponseType(typeof(CursorPagedResult<CandidatoDto>), 200)]
+    [ProducesResponseType(400)]
+    [ProducesResponseType(429)]
+    public async Task<ActionResult<CursorPagedResult<CandidatoDto>>> ListarComCursor(
+        [FromQuery] string? cursor = null,
+        [FromQuery] int limite = 20,
+        CancellationToken ct = default)
+    {
+        var resultado = await _listComCursorHandler.HandleAsync(
+            new ListCandidatosComCursorQuery(cursor, limite),
+            ct);
+
+        return Ok(resultado);
+    }
+
     [HttpPut("{id:guid}")]
+    [EnableRateLimiting("escrita")]
     [ProducesResponseType(typeof(CandidatoDto), 200)]
     [ProducesResponseType(400)]
     [ProducesResponseType(404)]
     [ProducesResponseType(409)]
+    [ProducesResponseType(429)]
     public async Task<ActionResult<CandidatoDto>> Atualizar(
         Guid id,
         [FromBody] AtualizarCandidatoRequest request,
@@ -101,9 +134,11 @@ public sealed class CandidatosController : ControllerBase
     }
 
     [HttpPost("{id:guid}/curriculo")]
+    [EnableRateLimiting("escrita")]
     [ProducesResponseType(typeof(CandidatoDto), 200)]
     [ProducesResponseType(400)]
     [ProducesResponseType(404)]
+    [ProducesResponseType(429)]
     public async Task<ActionResult<CandidatoDto>> AdicionarCurriculo(
         Guid id,
         [FromBody] AdicionarCurriculoRequest request,
@@ -121,8 +156,10 @@ public sealed class CandidatosController : ControllerBase
     }
 
     [HttpDelete("{id:guid}")]
+    [EnableRateLimiting("escrita")]
     [ProducesResponseType(204)]
     [ProducesResponseType(404)]
+    [ProducesResponseType(429)]
     public async Task<IActionResult> Remover(
         Guid id,
         CancellationToken ct = default)

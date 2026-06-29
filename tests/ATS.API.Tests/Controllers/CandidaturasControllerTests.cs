@@ -46,6 +46,7 @@ public class CandidaturasControllerTests
                 _candidatoRepositoryMock.Object,
                 _vagaRepositoryMock.Object,
                 _dispatcherMock.Object,
+                new CandidatarSeCommandValidator(),
                 NullLogger<CandidatarSeHandler>.Instance),
             new GetCandidaturaByIdHandler(
                 _candidaturaRepositoryMock.Object,
